@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { getApiErrorMessage, getSafeWalks, pageResults } from '../api'
+import { getApiErrorMessage, getHealth, getSafeWalks, pageResults } from '../api'
 import { formatDate } from '../adminFormat'
 import { Badge, EmptyState, ErrorBanner, Pagination } from '../adminUi'
-import { MapPin, Search } from 'lucide-react'
+import { Bell, Clock3, MapPin, Search, ShieldCheck, UsersRound } from 'lucide-react'
 
 interface SafeWalk {
   id: number
@@ -30,6 +30,12 @@ interface SafeWalk {
   contact_count: number
 }
 
+interface Health {
+  workers: {
+    safe_walk_cron: { ok: boolean; overdue_check_ins: number; overdue_escalations: number }
+  }
+}
+
 interface Page<T> {
   results?: T[]
   next?: string | null
@@ -50,6 +56,20 @@ const STATUS_LABELS: Record<string, string> = {
   escalated: 'Eskaliert',
 }
 
+function getWalkPhase(walk: SafeWalk) {
+  if (walk.status !== 'active') return STATUS_LABELS[walk.status] || walk.status
+  if (walk.check_in_sent_at) {
+    return walk.overdue_minutes > 0 ? 'Eskalation fällig' : 'Check-in offen'
+  }
+  return walk.overdue_minutes > 0 ? 'Check-in fällig' : 'Unterwegs'
+}
+
+function getNextWorkerStep(walk: SafeWalk) {
+  if (walk.status !== 'active') return 'Abgeschlossen'
+  if (walk.check_in_sent_at) return `Eskalation nach ${walk.grace_minutes} Min. Grace`
+  return 'Check-in bei erwarteter Ankunft'
+}
+
 export default function SafeWalksPage() {
   const [status, setStatus] = useState('active')
   const [overdue, setOverdue] = useState('')
@@ -67,9 +87,16 @@ export default function SafeWalksPage() {
   const { data, isLoading, error } = useQuery<Page<SafeWalk> | SafeWalk[]>({
     queryKey: ['safe-walks', status, overdue, user, event, cursor],
     queryFn: () => getSafeWalks(params),
+    refetchInterval: 30_000,
+  })
+  const { data: health } = useQuery<Health>({
+    queryKey: ['health', 'safe-walk-worker'],
+    queryFn: getHealth,
+    refetchInterval: 30_000,
   })
   const walks = pageResults<SafeWalk>(data)
   const page = data && !Array.isArray(data) ? data : undefined
+  const safeWalkWorker = health?.workers.safe_walk_cron
 
   const setFilter = (setter: (value: string) => void, value: string) => {
     setter(value)
@@ -81,12 +108,57 @@ export default function SafeWalksPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Safe-Walk-Monitoring</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Aktive, überfällige und eskalierte Heimwege prüfen</p>
+          <p className="text-sm text-gray-500 mt-0.5">Aktive, überfällige und eskalierte Heimwege mit Worker-Pushes prüfen</p>
         </div>
         <span className="text-sm text-gray-500">{walks.length} angezeigt</span>
       </div>
 
       <ErrorBanner message={error ? getApiErrorMessage(error) : ''} />
+
+      <div className="grid grid-cols-1 gap-4 mb-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Worker</p>
+              <p className="mt-1 text-sm font-semibold text-gray-900">process_safe_walks</p>
+              <p className="mt-1 text-xs text-gray-500">Container-Loop alle 30 Sekunden</p>
+            </div>
+            <Badge className={safeWalkWorker?.ok === false ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}>
+              {safeWalkWorker?.ok === false ? 'Prüfen' : 'Aktiv'}
+            </Badge>
+          </div>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="flex items-start gap-3">
+            <Clock3 size={18} className="mt-0.5 text-amber-600" />
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Fällige Check-ins</p>
+              <p className="mt-1 text-2xl font-bold text-gray-900">{safeWalkWorker?.overdue_check_ins ?? 0}</p>
+              <p className="text-xs text-gray-500">werden vom Worker per Push angestoßen</p>
+            </div>
+          </div>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="flex items-start gap-3">
+            <Bell size={18} className="mt-0.5 text-red-600" />
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Fällige Eskalationen</p>
+              <p className="mt-1 text-2xl font-bold text-gray-900">{safeWalkWorker?.overdue_escalations ?? 0}</p>
+              <p className="text-xs text-gray-500">idempotent verarbeitet, ohne doppelte Pushes</p>
+            </div>
+          </div>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="flex items-start gap-3">
+            <UsersRound size={18} className="mt-0.5 text-blue-600" />
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Kontakte</p>
+              <p className="mt-1 text-sm font-semibold text-gray-900">alle zulässigen Event-Kontakte</p>
+              <p className="mt-1 text-xs text-gray-500">falls keine explizite Auswahl gesetzt ist</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="flex flex-wrap gap-3 mb-5">
         <select
@@ -135,6 +207,7 @@ export default function SafeWalksPage() {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Event</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Zeitplan</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Standort</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Worker</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
               </tr>
             </thead>
@@ -161,6 +234,7 @@ export default function SafeWalksPage() {
                       <p>Ziel: {walk.destination_label}</p>
                       <p>Erwartet: {formatDate(walk.expected_arrival_at, true)}</p>
                       <p>Grace: {walk.grace_minutes} Min. · Kontakte: {walk.contact_count}</p>
+                      {walk.check_in_sent_at && <p>Check-in-Push: {formatDate(walk.check_in_sent_at, true)}</p>}
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500">
                       <p>Zuletzt: {formatDate(walk.last_location_at, true)}</p>
@@ -170,6 +244,15 @@ export default function SafeWalksPage() {
                         </a>
                       ) : (
                         <p className="text-gray-400">Kein Standort</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500">
+                      <p className="font-medium text-gray-700">{getWalkPhase(walk)}</p>
+                      <p>{getNextWorkerStep(walk)}</p>
+                      {walk.check_in_sent_at && walk.status === 'active' && (
+                        <p className="mt-1 inline-flex items-center gap-1 text-blue-700">
+                          <ShieldCheck size={12} /> 10 Min. länger setzt Check-in zurück
+                        </p>
                       )}
                     </td>
                     <td className="px-4 py-3">

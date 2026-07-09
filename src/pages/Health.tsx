@@ -37,7 +37,7 @@ export default function HealthPage() {
   const { data: health, isLoading, error, refetch, isFetching } = useQuery<Health>({
     queryKey: ['health'],
     queryFn: getHealth,
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
   })
   const { data: analytics } = useQuery<Analytics>({ queryKey: ['analytics'], queryFn: getAnalytics })
 
@@ -71,11 +71,14 @@ export default function HealthPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <div className="rounded-xl border border-gray-200 bg-white p-5">
               <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-700">Safe-Walk-Cron</h3>
+                <h3 className="text-sm font-semibold text-gray-700">Safe-Walk-Worker</h3>
                 <Badge className={health.workers.safe_walk_cron.ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
                   {health.workers.safe_walk_cron.ok ? 'OK' : 'Prüfen'}
                 </Badge>
               </div>
+              <p className="mb-4 text-xs text-gray-500">
+                Läuft im Container als process_safe_walks-Loop alle 30 Sekunden; parallele Läufe werden idempotent abgefangen.
+              </p>
               <dl className="grid grid-cols-2 gap-4">
                 <div>
                   <dt className="text-xs uppercase tracking-wide text-gray-400">Check-ins fällig</dt>

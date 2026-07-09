@@ -62,8 +62,11 @@ interface EventDetail {
     status: string
     destination_label: string
     expected_arrival_at: string
+    grace_minutes: number
+    check_in_sent_at: string | null
     last_location_at: string | null
     overdue_minutes: number
+    contact_count: number
     escalated_at: string | null
   }[]
   chat_messages: { id: number; sender: CompactUser; message_type: string; body: string; created_at: string }[]
@@ -265,6 +268,10 @@ export default function EventDetailPage() {
                   <p className="mt-1 text-xs text-gray-500">
                     Ziel: {walk.destination_label} · Erwartet {formatDate(walk.expected_arrival_at, true)}
                     {walk.overdue_minutes > 0 ? ` · ${walk.overdue_minutes} Min. überfällig` : ''}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-400">
+                    Kontakte: {walk.contact_count} · Grace: {walk.grace_minutes} Min.
+                    {walk.check_in_sent_at ? ` · Check-in-Push ${formatDate(walk.check_in_sent_at, true)}` : ' · Check-in noch nicht gesendet'}
                   </p>
                 </div>
               ))}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../useAuth'
 import { getApiErrorMessage, getAppleLoginConfig } from '../api'
 import { BrandLogo } from '../BrandLogo'
+import { Apple } from 'lucide-react'
 
 interface AppleLoginConfig {
   enabled: boolean
@@ -189,8 +190,9 @@ export default function Login() {
                 type="button"
                 onClick={handleAppleLogin}
                 disabled={appleLoading}
-                className="w-full rounded-lg bg-black py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-900 disabled:opacity-60"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-black py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-900 disabled:opacity-60"
               >
+                <Apple size={17} fill="currentColor" strokeWidth={1.7} />
                 {appleLoading ? 'Apple Anmeldung...' : 'Mit Apple anmelden'}
               </button>
             </>
