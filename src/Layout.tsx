@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from './useAuth'
+import { BrandLogo } from './BrandLogo'
 import {
   LayoutDashboard, Users, CalendarDays, AlertTriangle,
   Tag, Sparkles, Lightbulb, LogOut, ShieldCheck,
@@ -15,7 +16,7 @@ const nav = [
   { to: '/safe-walks', label: 'Safe-Walks', icon: Footprints },
   { to: '/health', label: 'Betrieb', icon: Activity },
   { to: '/audit', label: 'Audit', icon: ClipboardList },
-  { to: '/ideas', label: 'Ideen', icon: Lightbulb },
+  { to: '/ideas', label: 'Event-Ideen', icon: Lightbulb },
   { to: '/categories', label: 'Kategorien', icon: Tag },
   { to: '/interests', label: 'Interessen', icon: Sparkles },
 ]
@@ -31,7 +32,10 @@ export default function Layout() {
       {/* Sidebar */}
       <aside className="w-56 bg-white border-r border-gray-200 flex flex-col shrink-0">
         <div className="px-5 py-4 border-b border-gray-200">
-          <span className="text-lg font-bold text-violet-600 tracking-tight">hostly admin</span>
+          <div className="flex items-center gap-3">
+            <BrandLogo size="sm" />
+            <span className="text-lg font-bold text-violet-600 tracking-tight">hostly admin</span>
+          </div>
         </div>
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
           {nav.map(({ to, label, icon: Icon }) => (

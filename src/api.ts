@@ -64,6 +64,12 @@ api.interceptors.response.use(
 export const login = (email: string, password: string) =>
   api.post('/api/admin/login/', { email, password }).then((r) => r.data)
 
+export const getAppleLoginConfig = () =>
+  api.get('/api/admin/login/apple/config/').then((r) => r.data)
+
+export const loginWithApple = (identityToken: string, fullName?: string) =>
+  api.post('/api/admin/login/apple/', { identity_token: identityToken, full_name: fullName || '' }).then((r) => r.data)
+
 // Admin
 export const getStats = () => api.get('/api/admin/stats/').then((r) => r.data)
 
@@ -82,6 +88,9 @@ export const getProfiles = (params?: Record<string, string>) =>
 export const patchProfile = (id: number, data: Record<string, unknown>) =>
   api.patch(`/api/admin/profiles/${id}/`, data).then((r) => r.data)
 
+export const deleteProfilePhoto = (id: number) =>
+  api.delete(`/api/admin/profiles/${id}/photo/`).then((r) => r.data)
+
 export const getEvents = (params?: Record<string, string>) =>
   api.get('/api/admin/events/', { params }).then((r) => r.data)
 
@@ -90,6 +99,9 @@ export const getEvent = (id: number | string) =>
 
 export const patchEvent = (id: number, data: Record<string, unknown>) =>
   api.patch(`/api/admin/events/${id}/`, data).then((r) => r.data)
+
+export const deleteEventPhoto = (eventId: number, photoId: number) =>
+  api.delete(`/api/admin/events/${eventId}/photos/${photoId}/`).then((r) => r.data)
 
 export const getReports = (params?: Record<string, string>) =>
   api.get('/api/admin/reports/', { params }).then((r) => r.data)
@@ -139,6 +151,15 @@ export const deleteInterest = (id: number) =>
 
 export const getIdeas = (params?: Record<string, string>) =>
   api.get('/api/admin/ideas/', { params }).then((r) => r.data)
+
+export const createIdea = (data: Record<string, unknown>) =>
+  api.post('/api/admin/ideas/', data).then((r) => r.data)
+
+export const patchIdea = (id: number, data: Record<string, unknown>) =>
+  api.patch(`/api/admin/ideas/${id}/`, data).then((r) => r.data)
+
+export const deleteIdea = (id: number) =>
+  api.delete(`/api/admin/ideas/${id}/`).then((r) => r.data)
 
 export function cursorFromUrl(url: string | null | undefined) {
   if (!url) return ''

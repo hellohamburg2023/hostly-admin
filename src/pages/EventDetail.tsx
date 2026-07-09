@@ -1,9 +1,9 @@
 import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { getApiErrorMessage, getEvent, patchEvent } from '../api'
+import { deleteEventPhoto, getApiErrorMessage, getEvent, patchEvent } from '../api'
 import { formatDate } from '../adminFormat'
 import { Badge, DetailRow, ErrorBanner, Section } from '../adminUi'
-import { ArrowLeft, Ban } from 'lucide-react'
+import { ArrowLeft, Ban, Trash2 } from 'lucide-react'
 
 interface CompactUser {
   id: number
@@ -114,12 +114,18 @@ export default function EventDetailPage() {
     mutationFn: (status: string) => patchEvent(Number(id), { status }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['event', id] }),
   })
+  const photoMutation = useMutation({
+    mutationFn: (photoId: number) => deleteEventPhoto(Number(id), photoId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['event', id] }),
+  })
 
   const errorMessage = error
     ? getApiErrorMessage(error)
     : mutation.error
       ? getApiErrorMessage(mutation.error)
-      : ''
+      : photoMutation.error
+        ? getApiErrorMessage(photoMutation.error)
+        : ''
 
   if (isLoading) return <div className="p-8 text-gray-400">Laden...</div>
   if (!event) return <div className="p-8 text-gray-400">Event nicht gefunden</div>
@@ -176,10 +182,23 @@ export default function EventDetailPage() {
               {event.photos.length === 0 ? (
                 <p className="text-sm text-gray-400">Keine Fotos</p>
               ) : event.photos.map((photo) => (
-                <a key={photo.id} href={photo.photo_url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl border border-gray-200 bg-white">
-                  <img src={photo.photo_url} className="aspect-square w-full object-cover" alt={photo.caption} />
-                  <p className="truncate px-3 py-2 text-xs text-gray-500">{photo.caption || photo.uploaded_by?.email || 'Foto'}</p>
-                </a>
+                <div key={photo.id} className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                  <a href={photo.photo_url} target="_blank" rel="noreferrer" className="block">
+                    <img src={photo.photo_url} className="aspect-square w-full object-cover" alt={photo.caption} />
+                  </a>
+                  <div className="flex items-center justify-between gap-2 px-3 py-2">
+                    <p className="truncate text-xs text-gray-500">{photo.caption || photo.uploaded_by?.email || 'Foto'}</p>
+                    <button
+                      onClick={() => {
+                        if (confirm('Eventfoto löschen?')) photoMutation.mutate(photo.id)
+                      }}
+                      className="shrink-0 rounded p-1 text-red-500 hover:bg-red-50"
+                      title="Foto löschen"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           </Section>

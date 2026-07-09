@@ -1,9 +1,9 @@
 import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { getApiErrorMessage, getUser, patchUser } from '../api'
+import { deleteProfilePhoto, getApiErrorMessage, getUser, patchProfile, patchUser } from '../api'
 import { activityLabel, formatDate } from '../adminFormat'
 import { Badge, DetailRow, ErrorBanner, Section } from '../adminUi'
-import { ArrowLeft, UserCheck, UserX } from 'lucide-react'
+import { ArrowLeft, ShieldCheck, ShieldOff, Trash2, UserCheck, UserX } from 'lucide-react'
 
 interface CompactUser {
   id: number
@@ -61,6 +61,8 @@ interface UserDetail {
   reports_sent_count: number
   reports_received_count: number
   profile: {
+    id: number
+    photo_url: string
     bio: string
     city: string
     gender: string
@@ -151,12 +153,24 @@ export default function UserDetailPage() {
     mutationFn: (isActive: boolean) => patchUser(Number(id), { is_active: isActive }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['user', id] }),
   })
+  const profileMutation = useMutation({
+    mutationFn: ({ profileId, status }: { profileId: number; status: string }) => patchProfile(profileId, { verification_status: status }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['user', id] }),
+  })
+  const photoMutation = useMutation({
+    mutationFn: (profileId: number) => deleteProfilePhoto(profileId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['user', id] }),
+  })
 
   const errorMessage = error
     ? getApiErrorMessage(error)
     : mutation.error
       ? getApiErrorMessage(mutation.error)
-      : ''
+      : profileMutation.error
+        ? getApiErrorMessage(profileMutation.error)
+        : photoMutation.error
+          ? getApiErrorMessage(photoMutation.error)
+          : ''
 
   if (isLoading) return <div className="p-8 text-gray-400">Laden...</div>
   if (!user) return <div className="p-8 text-gray-400">Nutzer nicht gefunden</div>
@@ -219,6 +233,36 @@ export default function UserDetailPage() {
 
           <Section title="Profil">
             <div className="rounded-xl border border-gray-200 bg-white p-5">
+              {user.profile && (
+                <div className="mb-4 flex flex-wrap gap-2">
+                  {user.profile.verification_status !== 'verified' && (
+                    <button
+                      onClick={() => profileMutation.mutate({ profileId: user.profile!.id, status: 'verified' })}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-green-50 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-100"
+                    >
+                      <ShieldCheck size={14} /> Verifizieren
+                    </button>
+                  )}
+                  {user.profile.verification_status === 'verified' && (
+                    <button
+                      onClick={() => profileMutation.mutate({ profileId: user.profile!.id, status: 'unverified' })}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100"
+                    >
+                      <ShieldOff size={14} /> Verifizierung entfernen
+                    </button>
+                  )}
+                  {user.profile_photo_url && (
+                    <button
+                      onClick={() => {
+                        if (confirm('Profilbild löschen und Verifizierung zurücknehmen?')) photoMutation.mutate(user.profile!.id)
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
+                    >
+                      <Trash2 size={14} /> Profilbild löschen
+                    </button>
+                  )}
+                </div>
+              )}
               <dl className="grid grid-cols-1 gap-4">
                 <DetailRow label="Bio" value={user.profile?.bio} />
                 <DetailRow label="Gender" value={user.profile?.gender} />

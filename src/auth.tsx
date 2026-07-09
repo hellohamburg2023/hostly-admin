@@ -1,5 +1,5 @@
 import { useState, useEffect, type ReactNode } from 'react'
-import { login as apiLogin, api, clearAuthStorage } from './api'
+import { login as apiLogin, loginWithApple as apiLoginWithApple, api, clearAuthStorage } from './api'
 import { AuthContext, type AuthUser } from './authContext'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -51,10 +51,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const signInWithApple = async (identityToken: string, fullName?: string) => {
+    try {
+      const data = await apiLoginWithApple(identityToken, fullName)
+      localStorage.setItem('access_token', data.access)
+      localStorage.setItem('refresh_token', data.refresh)
+      await loadAdminUser()
+    } catch (error) {
+      clearAuthStorage()
+      setUser(null)
+      throw error
+    }
+  }
+
   const signOut = () => {
     clearAuthStorage()
     setUser(null)
   }
 
-  return <AuthContext.Provider value={{ user, loading, signIn, signOut }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, loading, signIn, signInWithApple, signOut }}>{children}</AuthContext.Provider>
 }

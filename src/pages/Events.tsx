@@ -17,6 +17,10 @@ interface Event {
   participant_count: number
   request_count: number
   report_count: number
+  open_report_count: number
+  reviewing_report_count: number
+  resolved_report_count: number
+  dismissed_report_count: number
   women_only: boolean
   host_id: number
   host_email: string
@@ -52,6 +56,7 @@ export default function EventsPage() {
   const [q, setQ] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [city, setCity] = useState('')
+  const [moderationFilter, setModerationFilter] = useState('')
   const [cursor, setCursor] = useState('')
   const qc = useQueryClient()
 
@@ -59,10 +64,11 @@ export default function EventsPage() {
   if (q) params.q = q
   if (statusFilter) params.status = statusFilter
   if (city) params.city = city
+  if (moderationFilter) params.moderation = moderationFilter
   if (cursor) params.cursor = cursor
 
   const { data, isLoading, error } = useQuery<Page<Event> | Event[]>({
-    queryKey: ['events', q, statusFilter, city, cursor],
+    queryKey: ['events', q, statusFilter, city, moderationFilter, cursor],
     queryFn: () => getEvents(params),
   })
   const events = pageResults<Event>(data)
@@ -116,6 +122,19 @@ export default function EventsPage() {
           <option value="">Alle Status</option>
           {Object.entries(STATUS_DE).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
+        <select
+          value={moderationFilter}
+          onChange={(e) => setFilter(setModerationFilter, e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+        >
+          <option value="">Alle Moderationsstände</option>
+          <option value="open_reports">Offene Meldungen</option>
+          <option value="reviewing_reports">Meldungen in Prüfung</option>
+          <option value="reported">Alle Events mit Meldungen</option>
+          <option value="resolved_reports">Gelöste Meldungen</option>
+          <option value="dismissed_reports">Abgewiesene Meldungen</option>
+          <option value="clean">Ohne Meldungen</option>
+        </select>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -160,7 +179,9 @@ export default function EventsPage() {
                         {STATUS_DE[event.status] || event.status}
                       </Badge>
                       {event.women_only && <Badge className="bg-pink-100 text-pink-600">Women only</Badge>}
-                      {event.report_count > 0 && <Badge className="bg-red-100 text-red-700">{event.report_count} Meldungen</Badge>}
+                      {event.open_report_count > 0 && <Badge className="bg-red-100 text-red-700">{event.open_report_count} offen</Badge>}
+                      {event.reviewing_report_count > 0 && <Badge className="bg-amber-100 text-amber-700">{event.reviewing_report_count} in Prüfung</Badge>}
+                      {event.report_count > 0 && <Badge className="bg-gray-100 text-gray-700">{event.report_count} Meldungen gesamt</Badge>}
                     </div>
                   </td>
                   <td className="px-4 py-3">

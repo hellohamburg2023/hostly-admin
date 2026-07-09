@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getApiErrorMessage, getProfiles, pageResults, patchProfile } from '../api'
+import { deleteProfilePhoto, getApiErrorMessage, getProfiles, pageResults, patchProfile } from '../api'
 import { formatDate } from '../adminFormat'
 import { Badge, EmptyState, ErrorBanner, Pagination } from '../adminUi'
-import { CheckCircle, Maximize2, Search, X, XCircle } from 'lucide-react'
+import { CheckCircle, Maximize2, Search, Trash2, X, XCircle } from 'lucide-react'
 
 interface Profile {
   id: number
@@ -74,6 +74,10 @@ export default function VerificationPage() {
       patchProfile(id, { verification_status: status, verification_note: note }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['profiles'] }),
   })
+  const photoMutation = useMutation({
+    mutationFn: deleteProfilePhoto,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['profiles'] }),
+  })
 
   const setFilter = (setter: (value: string) => void, value: string) => {
     setter(value)
@@ -84,7 +88,9 @@ export default function VerificationPage() {
     ? getApiErrorMessage(error)
     : mutation.error
       ? getApiErrorMessage(mutation.error)
-      : ''
+      : photoMutation.error
+        ? getApiErrorMessage(photoMutation.error)
+        : ''
 
   return (
     <div className="p-8">
@@ -198,6 +204,16 @@ export default function VerificationPage() {
                   <XCircle size={14} /> Ablehnen
                 </button>
               </div>
+              {profile.photo_url && (
+                <button
+                  onClick={() => {
+                    if (confirm('Profilbild löschen?')) photoMutation.mutate(profile.id)
+                  }}
+                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-gray-50 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+                >
+                  <Trash2 size={14} /> Bild wegen Richtlinienverstoß löschen
+                </button>
+              )}
             </div>
           ))}
         </div>

@@ -32,6 +32,10 @@ interface ReportDetail {
   reason: string
   details: string
   status: string
+  moderation_decision: string
+  moderation_note: string
+  decided_at: string | null
+  decided_by_email: string
   created_at: string
   reporter_id: number
   reporter_email: string
@@ -59,6 +63,15 @@ const STATUS_LABELS: Record<string, string> = {
   reviewing: 'In Prüfung',
   resolved: 'Gelöst',
   dismissed: 'Abgewiesen',
+}
+
+const DECISION_LABELS: Record<string, string> = {
+  needs_review: 'Prüfung gestartet',
+  no_violation: 'Kein Verstoß',
+  violation_confirmed: 'Verstoß bestätigt',
+  user_suspended: 'Gemeldeter Nutzer gesperrt',
+  reporter_suspended: 'Reporter gesperrt',
+  event_cancelled: 'Event abgesagt',
 }
 
 function UserCard({ user, title }: { user: CompactUser | null; title: string }) {
@@ -133,10 +146,24 @@ export default function ReportDetailPage() {
           <div>
             <div className="mb-2 flex items-center gap-2">
               <Badge className={STATUS_STYLES[report.status] || STATUS_STYLES.open}>{STATUS_LABELS[report.status] || report.status}</Badge>
+              {report.moderation_decision && (
+                <Badge className="bg-blue-100 text-blue-700">
+                  {DECISION_LABELS[report.moderation_decision] || report.moderation_decision}
+                </Badge>
+              )}
               <span className="text-xs text-gray-400">{formatDate(report.created_at, true)}</span>
             </div>
             <h2 className="text-xl font-bold text-gray-900">{report.reason}</h2>
             {report.details && <p className="mt-2 max-w-3xl whitespace-pre-wrap text-sm text-gray-600">{report.details}</p>}
+            {report.moderation_note && (
+              <div className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-800">
+                <p className="font-medium">Gespeicherte Entscheidung</p>
+                <p>{report.moderation_note}</p>
+                <p className="mt-1 text-xs text-blue-600">
+                  {formatDate(report.decided_at, true)} · {report.decided_by_email || 'Admin'}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -171,7 +198,7 @@ export default function ReportDetailPage() {
               <textarea
                 value={note}
                 onChange={(event) => setNote(event.target.value)}
-                placeholder="Interne Notiz zur Maßnahme"
+                placeholder="Begründung der Entscheidung, z.B. kein Verstoß, Nutzer wiederholt beleidigend, Event verletzt Richtlinien"
                 className="mb-4 h-20 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
               />
               <div className="flex flex-wrap gap-2">

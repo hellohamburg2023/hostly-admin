@@ -11,6 +11,10 @@ interface Report {
   reason: string
   details: string
   status: string
+  moderation_decision: string
+  moderation_note: string
+  decided_at: string | null
+  decided_by_email: string
   created_at: string
   reporter_id: number
   reporter_email: string
@@ -40,6 +44,15 @@ const STATUS_DE: Record<string, string> = {
   reviewing: 'In Prüfung',
   resolved: 'Gelöst',
   dismissed: 'Abgewiesen',
+}
+
+const DECISION_LABELS: Record<string, string> = {
+  needs_review: 'Prüfung gestartet',
+  no_violation: 'Kein Verstoß',
+  violation_confirmed: 'Verstoß bestätigt',
+  user_suspended: 'Nutzer gesperrt',
+  reporter_suspended: 'Reporter gesperrt',
+  event_cancelled: 'Event abgesagt',
 }
 
 const NEXT_ACTIONS: Record<string, { label: string; action: string; style: string }[]> = {
@@ -156,12 +169,22 @@ export default function ReportsPage() {
                     <Badge className={STATUS_STYLES[report.status] || STATUS_STYLES.open}>
                       {STATUS_DE[report.status] || report.status}
                     </Badge>
+                    {report.moderation_decision && (
+                      <Badge className="bg-blue-100 text-blue-700">
+                        {DECISION_LABELS[report.moderation_decision] || report.moderation_decision}
+                      </Badge>
+                    )}
                     <span className="text-xs text-gray-400">{formatDate(report.created_at, true)}</span>
                   </div>
                   <Link to={`/reports/${report.id}`} className="font-semibold text-gray-900 text-sm hover:text-violet-700">
                     {report.reason}
                   </Link>
                   {report.details && <p className="text-sm text-gray-600 mt-1 mb-2 line-clamp-2">{report.details}</p>}
+                  {report.moderation_note && (
+                    <p className="text-xs text-blue-700 bg-blue-50 rounded-lg px-2 py-1 mb-2">
+                      Entscheidung: {report.moderation_note}
+                    </p>
+                  )}
                   <div className="text-xs text-gray-500 space-y-0.5">
                     <p>
                       Von:{' '}
