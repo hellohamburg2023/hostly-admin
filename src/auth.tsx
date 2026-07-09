@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
-import { login as apiLogin } from './api'
+import { login as apiLogin, api } from './api'
 
 interface AuthUser { id: number; email: string; is_staff: boolean; is_superuser: boolean }
 interface AuthCtx { user: AuthUser | null; loading: boolean; signIn: (e: string, p: string) => Promise<void>; signOut: () => void }
@@ -18,13 +18,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     const data = await apiLogin(email, password)
-    if (!data.user?.is_staff && !data.user?.is_superuser) {
-      throw new Error('Keine Admin-Berechtigung')
-    }
+    // store token first so the me-request is authenticated
     localStorage.setItem('access_token', data.access)
     localStorage.setItem('refresh_token', data.refresh)
-    localStorage.setItem('admin_user', JSON.stringify(data.user))
-    setUser(data.user)
+    // fetch user profile to verify staff/superuser status
+    const me = await api.get('/api/auth/me/').then((r) => r.data)
+    if (!me.is_staff && !me.is_superuser) {
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      throw new Error('Keine Admin-Berechtigung')
+    }
+    localStorage.setItem('admin_user', JSON.stringify(me))
+    setUser(me)
   }
 
   const signOut = () => {
