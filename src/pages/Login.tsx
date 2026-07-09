@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { api } from '../api'
+import { signInWithApple, appleAvailable } from '../appleAuth'
 
 export default function Login() {
-  const { signIn } = useAuth()
+  const { signIn, signInWithTokens } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -40,16 +41,30 @@ export default function Login() {
         email: setupEmail,
         new_password: newPassword,
       })
-      localStorage.setItem('access_token', data.access)
-      localStorage.setItem('refresh_token', data.refresh)
-      const me = await api.get('/api/auth/me/').then((r) => r.data)
-      localStorage.setItem('admin_user', JSON.stringify(me))
+      await signInWithTokens(data.access, data.refresh)
       setSetupDone(true)
-      setTimeout(() => window.location.href = '/', 1500)
+      setTimeout(() => navigate('/'), 1500)
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string | string[] } } })
         ?.response?.data?.detail
       setError(Array.isArray(msg) ? msg.join(' ') : (msg ?? 'Fehler beim Einrichten'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAppleSignIn = async () => {
+    setError('')
+    setLoading(true)
+    try {
+      const { identity_token, full_name } = await signInWithApple()
+      const { data } = await api.post('/api/auth/apple/', { identity_token, full_name })
+      await signInWithTokens(data.access, data.refresh)
+      navigate('/')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message :
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setError(msg ?? 'Apple Login fehlgeschlagen')
     } finally {
       setLoading(false)
     }
@@ -105,6 +120,28 @@ export default function Login() {
               >
                 {loading ? 'Anmelden…' : 'Anmelden'}
               </button>
+
+              {appleAvailable && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-px bg-gray-200" />
+                    <span className="text-xs text-gray-400">oder</span>
+                    <div className="flex-1 h-px bg-gray-200" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAppleSignIn}
+                    disabled={loading}
+                    className="w-full flex items-center justify-center gap-2.5 bg-black hover:bg-gray-900 disabled:opacity-60 text-white font-medium py-2 rounded-lg text-sm transition-colors"
+                  >
+                    <svg viewBox="0 0 814 1000" className="w-4 h-4 fill-white" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-42.3-142.9-90.2C35.1 776.3 0 702.3 0 631.4c0-145.6 102.1-216.6 201-216.6 55.2 0 101.6 37.4 136 37.4 32.6 0 84.2-39.5 148.4-39.5 24.1 0 108.2 2.6 168.2 94.9zm-319.4-201c30.7-36.2 52.4-86.1 52.4-136 0-6.9-.6-13.9-1.9-19.5-49.7 1.9-108.8 33.2-142.9 75.5-27.5 32.6-52.4 82.5-52.4 133.1 0 7.5 1.3 15 1.9 17.5 3.2.6 8.4 1.3 13.6 1.3 44.8 0 100.5-29.4 129.3-71.9z"/>
+                    </svg>
+                    Mit Apple anmelden
+                  </button>
+                </>
+              )}
+
               <button
                 type="button"
                 onClick={() => { setSetupMode(true); setError('') }}
