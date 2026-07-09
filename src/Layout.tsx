@@ -1,8 +1,9 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { useAuth } from './auth'
+import { useAuth } from './useAuth'
 import {
   LayoutDashboard, Users, CalendarDays, AlertTriangle,
   Tag, Sparkles, Lightbulb, LogOut, ShieldCheck,
+  Footprints, Activity, ClipboardList,
 } from 'lucide-react'
 
 const nav = [
@@ -11,6 +12,9 @@ const nav = [
   { to: '/verification', label: 'Verifizierung', icon: ShieldCheck },
   { to: '/events', label: 'Events', icon: CalendarDays },
   { to: '/reports', label: 'Meldungen', icon: AlertTriangle },
+  { to: '/safe-walks', label: 'Safe-Walks', icon: Footprints },
+  { to: '/health', label: 'Betrieb', icon: Activity },
+  { to: '/audit', label: 'Audit', icon: ClipboardList },
   { to: '/ideas', label: 'Ideen', icon: Lightbulb },
   { to: '/categories', label: 'Kategorien', icon: Tag },
   { to: '/interests', label: 'Interessen', icon: Sparkles },

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getInterests, createInterest, patchInterest, deleteInterest } from '../api'
+import { getApiErrorMessage, getInterests, createInterest, patchInterest, deleteInterest } from '../api'
+import { ErrorBanner } from '../adminUi'
 import { Plus, Pencil, Trash2, Check, X } from 'lucide-react'
 
 interface Interest { id: number; name: string; slug: string; group_title: string; sort_order: number }
@@ -29,6 +30,13 @@ export default function InterestsPage() {
   })
 
   const groups = [...new Set(interests.map(i => i.group_title).filter(Boolean))]
+  const errorMessage = createMut.error
+    ? getApiErrorMessage(createMut.error)
+    : updateMut.error
+      ? getApiErrorMessage(updateMut.error)
+      : deleteMut.error
+        ? getApiErrorMessage(deleteMut.error)
+        : ''
 
   return (
     <div className="p-8">
@@ -41,6 +49,8 @@ export default function InterestsPage() {
           <Plus size={14} /> Neues Interesse
         </button>
       </div>
+
+      <ErrorBanner message={errorMessage} />
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {isLoading ? (

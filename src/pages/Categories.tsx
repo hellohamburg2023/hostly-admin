@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getCategories, createCategory, patchCategory, deleteCategory } from '../api'
+import { getApiErrorMessage, getCategories, createCategory, patchCategory, deleteCategory } from '../api'
+import { ErrorBanner } from '../adminUi'
 import { Plus, Pencil, Trash2, Check, X } from 'lucide-react'
 
 interface Category { id: number; name: string; slug: string; icon: string; event_count: number }
@@ -29,6 +30,13 @@ export default function CategoriesPage() {
   })
 
   const startEdit = (c: Category) => { setEditId(c.id); setEditValues({ name: c.name, slug: c.slug, icon: c.icon }) }
+  const errorMessage = createMut.error
+    ? getApiErrorMessage(createMut.error)
+    : updateMut.error
+      ? getApiErrorMessage(updateMut.error)
+      : deleteMut.error
+        ? getApiErrorMessage(deleteMut.error)
+        : ''
 
   return (
     <div className="p-8">
@@ -41,6 +49,8 @@ export default function CategoriesPage() {
           <Plus size={14} /> Neue Kategorie
         </button>
       </div>
+
+      <ErrorBanner message={errorMessage} />
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {isLoading ? (

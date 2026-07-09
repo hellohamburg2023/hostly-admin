@@ -1,7 +1,10 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getEvents, patchEvent } from '../api'
-import { Search, Users, MapPin, Calendar } from 'lucide-react'
+import { getApiErrorMessage, getEvents, pageResults, patchEvent } from '../api'
+import { formatDate } from '../adminFormat'
+import { Badge, ErrorBanner, Pagination } from '../adminUi'
+import { Calendar, Eye, MapPin, Search, Users } from 'lucide-react'
 
 interface Event {
   id: number
@@ -12,13 +15,21 @@ interface Event {
   starts_at: string
   participant_limit: number
   participant_count: number
+  request_count: number
+  report_count: number
   women_only: boolean
   host_id: number
   host_email: string
   host_username: string
-  category_id: number
+  host_name: string
   category_name: string
   created_at: string
+}
+
+interface Page<T> {
+  results?: T[]
+  next?: string | null
+  previous?: string | null
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -30,56 +41,86 @@ const STATUS_STYLES: Record<string, string> = {
 }
 
 const STATUS_DE: Record<string, string> = {
-  open: 'Offen', full: 'Voll', draft: 'Entwurf', cancelled: 'Abgesagt', completed: 'Beendet',
+  open: 'Offen',
+  full: 'Voll',
+  draft: 'Entwurf',
+  cancelled: 'Abgesagt',
+  completed: 'Beendet',
 }
 
 export default function EventsPage() {
   const [q, setQ] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [city, setCity] = useState('')
+  const [cursor, setCursor] = useState('')
   const qc = useQueryClient()
 
   const params: Record<string, string> = {}
   if (q) params.q = q
   if (statusFilter) params.status = statusFilter
+  if (city) params.city = city
+  if (cursor) params.cursor = cursor
 
-  const { data, isLoading } = useQuery({ queryKey: ['events', q, statusFilter], queryFn: () => getEvents(params) })
-  const events: Event[] = data?.results ?? data ?? []
+  const { data, isLoading, error } = useQuery<Page<Event> | Event[]>({
+    queryKey: ['events', q, statusFilter, city, cursor],
+    queryFn: () => getEvents(params),
+  })
+  const events = pageResults<Event>(data)
+  const page = data && !Array.isArray(data) ? data : undefined
 
   const mutation = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) => patchEvent(id, { status }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['events'] }),
   })
 
+  const setFilter = (setter: (value: string) => void, value: string) => {
+    setter(value)
+    setCursor('')
+  }
+  const errorMessage = error
+    ? getApiErrorMessage(error)
+    : mutation.error
+      ? getApiErrorMessage(mutation.error)
+      : ''
+
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-gray-900">Events</h2>
-        <span className="text-sm text-gray-500">{events.length} Einträge</span>
+        <span className="text-sm text-gray-500">{events.length} angezeigt</span>
       </div>
 
-      <div className="flex gap-3 mb-5">
-        <div className="relative flex-1 max-w-xs">
+      <ErrorBanner message={errorMessage} />
+
+      <div className="flex flex-wrap gap-3 mb-5">
+        <div className="relative flex-1 min-w-64 max-w-sm">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Titel, Host-E-Mail…"
+            onChange={(e) => setFilter(setQ, e.target.value)}
+            placeholder="Titel, Host-E-Mail"
             className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
         </div>
+        <input
+          value={city}
+          onChange={(e) => setFilter(setCity, e.target.value)}
+          placeholder="Stadt"
+          className="w-40 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+        />
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => setFilter(setStatusFilter, e.target.value)}
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
         >
           <option value="">Alle Status</option>
-          {Object.entries(STATUS_DE).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          {Object.entries(STATUS_DE).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {isLoading ? (
-          <div className="p-8 text-center text-gray-400">Laden…</div>
+          <div className="p-8 text-center text-gray-400">Laden...</div>
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -87,43 +128,59 @@ export default function EventsPage() {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Event</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Host</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Details</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Moderation</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Aktionen</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {events.map((ev) => (
-                <tr key={ev.id} className="hover:bg-gray-50 transition-colors">
+              {events.map((event) => (
+                <tr key={event.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3">
-                    <p className="font-medium text-gray-900">{ev.title}</p>
-                    <p className="text-xs text-gray-400">{ev.category_name}</p>
+                    <Link to={`/events/${event.id}`} className="font-medium text-gray-900 hover:text-violet-700">
+                      {event.title}
+                    </Link>
+                    <p className="text-xs text-gray-400">{event.category_name || 'Keine Kategorie'} · erstellt {formatDate(event.created_at)}</p>
                   </td>
                   <td className="px-4 py-3">
-                    <p className="text-gray-700">{ev.host_username}</p>
-                    <p className="text-xs text-gray-400">{ev.host_email}</p>
+                    <Link to={`/users/${event.host_id}`} className="text-gray-700 hover:text-violet-700">
+                      {event.host_name || event.host_username || event.host_email}
+                    </Link>
+                    <p className="text-xs text-gray-400">{event.host_email}</p>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col gap-0.5">
-                      <span className="flex items-center gap-1 text-gray-500 text-xs"><MapPin size={10} />{ev.city}</span>
-                      <span className="flex items-center gap-1 text-gray-500 text-xs"><Calendar size={10} />{new Date(ev.starts_at).toLocaleDateString('de-DE')}</span>
-                      <span className="flex items-center gap-1 text-gray-500 text-xs"><Users size={10} />{ev.participant_count}/{ev.participant_limit}</span>
+                      <span className="flex items-center gap-1 text-gray-500 text-xs"><MapPin size={10} />{event.city || '-'}</span>
+                      <span className="flex items-center gap-1 text-gray-500 text-xs"><Calendar size={10} />{formatDate(event.starts_at, true)}</span>
+                      <span className="flex items-center gap-1 text-gray-500 text-xs"><Users size={10} />{event.participant_count}/{event.participant_limit} · {event.request_count} Anfragen</span>
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[ev.status] || STATUS_STYLES.draft}`}>
-                      {STATUS_DE[ev.status] || ev.status}
-                    </span>
-                    {ev.women_only && <span className="ml-1 px-2 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-600">♀ only</span>}
+                    <div className="flex flex-wrap gap-1">
+                      <Badge className={STATUS_STYLES[event.status] || STATUS_STYLES.draft}>
+                        {STATUS_DE[event.status] || event.status}
+                      </Badge>
+                      {event.women_only && <Badge className="bg-pink-100 text-pink-600">Women only</Badge>}
+                      {event.report_count > 0 && <Badge className="bg-red-100 text-red-700">{event.report_count} Meldungen</Badge>}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
-                    {ev.status !== 'cancelled' && ev.status !== 'completed' && (
-                      <button
-                        onClick={() => mutation.mutate({ id: ev.id, status: 'cancelled' })}
-                        className="text-xs text-red-600 hover:text-red-800 border border-red-200 hover:border-red-400 px-2 py-1 rounded-lg transition-colors"
+                    <div className="flex items-center gap-2">
+                      <Link
+                        to={`/events/${event.id}`}
+                        title="Details prüfen"
+                        className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition-colors"
                       >
-                        Absagen
-                      </button>
-                    )}
+                        <Eye size={14} />
+                      </Link>
+                      {event.status !== 'cancelled' && event.status !== 'completed' && (
+                        <button
+                          onClick={() => mutation.mutate({ id: event.id, status: 'cancelled' })}
+                          className="text-xs text-red-600 hover:text-red-800 border border-red-200 hover:border-red-400 px-2 py-1 rounded-lg transition-colors"
+                        >
+                          Absagen
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -131,6 +188,7 @@ export default function EventsPage() {
           </table>
         )}
       </div>
+      <Pagination data={page} onCursor={setCursor} />
     </div>
   )
 }

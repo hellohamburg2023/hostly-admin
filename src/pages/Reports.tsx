@@ -1,6 +1,10 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getReports, patchReport } from '../api'
+import { getApiErrorMessage, getReports, pageResults, reportAction } from '../api'
+import { formatDate } from '../adminFormat'
+import { Badge, EmptyState, ErrorBanner, Pagination } from '../adminUi'
+import { Eye, Search } from 'lucide-react'
 
 interface Report {
   id: number
@@ -15,6 +19,13 @@ interface Report {
   reported_user_email: string | null
   event_id: number | null
   event_title: string | null
+  event_city: string | null
+}
+
+interface Page<T> {
+  results?: T[]
+  next?: string | null
+  previous?: string | null
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -25,80 +36,171 @@ const STATUS_STYLES: Record<string, string> = {
 }
 
 const STATUS_DE: Record<string, string> = {
-  open: 'Offen', reviewing: 'In Prüfung', resolved: 'Gelöst', dismissed: 'Abgewiesen',
+  open: 'Offen',
+  reviewing: 'In Prüfung',
+  resolved: 'Gelöst',
+  dismissed: 'Abgewiesen',
 }
 
-const NEXT_ACTIONS: Record<string, { label: string; status: string; style: string }[]> = {
-  open: [{ label: 'In Prüfung nehmen', status: 'reviewing', style: 'border-amber-300 text-amber-700 hover:bg-amber-50' }],
+const NEXT_ACTIONS: Record<string, { label: string; action: string; style: string }[]> = {
+  open: [{ label: 'Prüfen', action: 'reviewing', style: 'border-amber-300 text-amber-700 hover:bg-amber-50' }],
   reviewing: [
-    { label: 'Lösen', status: 'resolved', style: 'border-green-300 text-green-700 hover:bg-green-50' },
-    { label: 'Abweisen', status: 'dismissed', style: 'border-gray-300 text-gray-600 hover:bg-gray-50' },
+    { label: 'Lösen', action: 'resolve', style: 'border-green-300 text-green-700 hover:bg-green-50' },
+    { label: 'Kein Verstoß', action: 'dismiss', style: 'border-gray-300 text-gray-600 hover:bg-gray-50' },
   ],
 }
 
 export default function ReportsPage() {
   const [statusFilter, setStatusFilter] = useState('open')
+  const [q, setQ] = useState('')
+  const [reporter, setReporter] = useState('')
+  const [reportedUser, setReportedUser] = useState('')
+  const [event, setEvent] = useState('')
+  const [cursor, setCursor] = useState('')
   const qc = useQueryClient()
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['reports', statusFilter],
-    queryFn: () => getReports(statusFilter ? { status: statusFilter } : undefined),
+  const params: Record<string, string> = {}
+  if (statusFilter) params.status = statusFilter
+  if (q) params.q = q
+  if (reporter) params.reporter = reporter
+  if (reportedUser) params.reported_user = reportedUser
+  if (event) params.event = event
+  if (cursor) params.cursor = cursor
+
+  const { data, isLoading, error } = useQuery<Page<Report> | Report[]>({
+    queryKey: ['reports', statusFilter, q, reporter, reportedUser, event, cursor],
+    queryFn: () => getReports(params),
   })
-  const reports: Report[] = data?.results ?? data ?? []
+  const reports = pageResults<Report>(data)
+  const page = data && !Array.isArray(data) ? data : undefined
 
   const mutation = useMutation({
-    mutationFn: ({ id, status }: { id: number; status: string }) => patchReport(id, { status }),
+    mutationFn: ({ id, action }: { id: number; action: string }) => reportAction(id, { action }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['reports'] }),
   })
+
+  const setFilter = (setter: (value: string) => void, value: string) => {
+    setter(value)
+    setCursor('')
+  }
+  const errorMessage = error
+    ? getApiErrorMessage(error)
+    : mutation.error
+      ? getApiErrorMessage(mutation.error)
+      : ''
 
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-gray-900">Meldungen</h2>
-        <span className="text-sm text-gray-500">{reports.length} Einträge</span>
+        <span className="text-sm text-gray-500">{reports.length} angezeigt</span>
       </div>
 
-      <div className="flex gap-2 mb-5">
-        {(['', 'open', 'reviewing', 'resolved', 'dismissed'] as const).map((s) => (
+      <ErrorBanner message={errorMessage} />
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        {(['', 'open', 'reviewing', 'resolved', 'dismissed'] as const).map((status) => (
           <button
-            key={s}
-            onClick={() => setStatusFilter(s)}
+            key={status}
+            onClick={() => setFilter(setStatusFilter, status)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              statusFilter === s ? 'bg-violet-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+              statusFilter === status ? 'bg-violet-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
             }`}
           >
-            {s ? STATUS_DE[s] : 'Alle'}
+            {status ? STATUS_DE[status] : 'Alle'}
           </button>
         ))}
       </div>
 
+      <div className="flex flex-wrap gap-3 mb-5">
+        <div className="relative flex-1 min-w-64 max-w-sm">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            value={q}
+            onChange={(e) => setFilter(setQ, e.target.value)}
+            placeholder="Grund, Details, E-Mail, Event"
+            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+          />
+        </div>
+        <input
+          value={reporter}
+          onChange={(e) => setFilter(setReporter, e.target.value)}
+          placeholder="Reporter-ID"
+          className="w-32 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+        />
+        <input
+          value={reportedUser}
+          onChange={(e) => setFilter(setReportedUser, e.target.value)}
+          placeholder="Gemeldet-ID"
+          className="w-32 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+        />
+        <input
+          value={event}
+          onChange={(e) => setFilter(setEvent, e.target.value)}
+          placeholder="Event-ID"
+          className="w-32 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+        />
+      </div>
+
       {isLoading ? (
-        <div className="text-gray-400">Laden…</div>
+        <div className="text-gray-400">Laden...</div>
+      ) : reports.length === 0 ? (
+        <EmptyState>Keine Meldungen in dieser Auswahl</EmptyState>
       ) : (
         <div className="space-y-3">
-          {reports.map((r) => (
-            <div key={r.id} className="bg-white rounded-xl border border-gray-200 p-5">
+          {reports.map((report) => (
+            <div key={report.id} className="bg-white rounded-xl border border-gray-200 p-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[r.status]}`}>
-                      {STATUS_DE[r.status]}
-                    </span>
-                    <span className="text-xs text-gray-400">{new Date(r.created_at).toLocaleDateString('de-DE')}</span>
+                    <Badge className={STATUS_STYLES[report.status] || STATUS_STYLES.open}>
+                      {STATUS_DE[report.status] || report.status}
+                    </Badge>
+                    <span className="text-xs text-gray-400">{formatDate(report.created_at, true)}</span>
                   </div>
-                  <p className="font-semibold text-gray-900 text-sm mb-0.5">{r.reason}</p>
-                  {r.details && <p className="text-sm text-gray-600 mb-2">{r.details}</p>}
+                  <Link to={`/reports/${report.id}`} className="font-semibold text-gray-900 text-sm hover:text-violet-700">
+                    {report.reason}
+                  </Link>
+                  {report.details && <p className="text-sm text-gray-600 mt-1 mb-2 line-clamp-2">{report.details}</p>}
                   <div className="text-xs text-gray-500 space-y-0.5">
-                    <p>Von: <span className="text-gray-700">{r.reporter_username}</span> ({r.reporter_email})</p>
-                    {r.reported_user_email && <p>Gemeldet: <span className="text-gray-700">{r.reported_user_email}</span></p>}
-                    {r.event_title && <p>Event: <span className="text-gray-700">{r.event_title}</span></p>}
+                    <p>
+                      Von:{' '}
+                      <Link to={`/users/${report.reporter_id}`} className="text-gray-700 hover:text-violet-700">
+                        {report.reporter_username || report.reporter_email}
+                      </Link>{' '}
+                      ({report.reporter_email})
+                    </p>
+                    {report.reported_user_id && (
+                      <p>
+                        Gemeldeter Nutzer:{' '}
+                        <Link to={`/users/${report.reported_user_id}`} className="text-gray-700 hover:text-violet-700">
+                          {report.reported_user_email}
+                        </Link>
+                      </p>
+                    )}
+                    {report.event_id && (
+                      <p>
+                        Event:{' '}
+                        <Link to={`/events/${report.event_id}`} className="text-gray-700 hover:text-violet-700">
+                          {report.event_title}
+                        </Link>{' '}
+                        {report.event_city ? `· ${report.event_city}` : ''}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  {(NEXT_ACTIONS[r.status] || []).map((action) => (
+                  <Link
+                    to={`/reports/${report.id}`}
+                    title="Kontext prüfen"
+                    className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors"
+                  >
+                    <Eye size={14} />
+                  </Link>
+                  {(NEXT_ACTIONS[report.status] || []).map((action) => (
                     <button
-                      key={action.status}
-                      onClick={() => mutation.mutate({ id: r.id, status: action.status })}
+                      key={action.action}
+                      onClick={() => mutation.mutate({ id: report.id, action: action.action })}
                       className={`text-xs border px-3 py-1.5 rounded-lg font-medium transition-colors ${action.style}`}
                     >
                       {action.label}
@@ -108,13 +210,9 @@ export default function ReportsPage() {
               </div>
             </div>
           ))}
-          {reports.length === 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
-              Keine Meldungen in dieser Kategorie
-            </div>
-          )}
         </div>
       )}
+      <Pagination data={page} onCursor={setCursor} />
     </div>
   )
 }
