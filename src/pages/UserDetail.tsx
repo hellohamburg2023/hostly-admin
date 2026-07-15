@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { deleteProfilePhoto, getApiErrorMessage, getUser, patchProfile, patchUser } from '../api'
 import { activityLabel, formatDate } from '../adminFormat'
 import { Badge, DetailRow, ErrorBanner, Section } from '../adminUi'
-import { ArrowLeft, ShieldCheck, ShieldOff, Trash2, UserCheck, UserX } from 'lucide-react'
+import { ArrowLeft, ShieldCheck, ShieldOff, Tag, Trash2, UserCheck, UserX } from 'lucide-react'
 
 interface CompactUser {
   id: number
@@ -44,6 +44,7 @@ interface UserDetail {
   email: string
   username: string
   is_active: boolean
+  is_test_user: boolean
   is_staff: boolean
   is_superuser: boolean
   date_joined: string
@@ -168,8 +169,13 @@ export default function UserDetailPage() {
     enabled: Boolean(id),
   })
   const mutation = useMutation({
-    mutationFn: (isActive: boolean) => patchUser(Number(id), { is_active: isActive }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['user', id] }),
+    mutationFn: (patch: Record<string, unknown>) => patchUser(Number(id), patch),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['user', id] })
+      qc.invalidateQueries({ queryKey: ['users'] })
+      qc.invalidateQueries({ queryKey: ['stats'] })
+      qc.invalidateQueries({ queryKey: ['analytics'] })
+    },
   })
   const profileMutation = useMutation({
     mutationFn: ({ profileId, status }: { profileId: number; status: string }) => patchProfile(profileId, { verification_status: status }),
@@ -214,24 +220,44 @@ export default function UserDetailPage() {
               <h2 className="text-xl font-bold text-gray-900">{user.profile_display_name || user.username}</h2>
               <p className="break-all text-sm text-gray-500">{user.email}</p>
               <div className="mt-2 flex flex-wrap gap-1">
-                <Badge className={user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}>{user.is_active ? 'Aktiv' : 'Gesperrt'}</Badge>
-                {user.is_deleted && <Badge className="bg-gray-200 text-gray-700">Gelöscht</Badge>}
+                {user.is_deleted ? (
+                  <Badge className="bg-gray-200 text-gray-700">Gelöscht</Badge>
+                ) : (
+                  <Badge className={user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}>{user.is_active ? 'Aktiv' : 'Gesperrt'}</Badge>
+                )}
+                {user.is_test_user && (
+                  <Badge className="bg-violet-100 text-violet-700">Testuser</Badge>
+                )}
                 <Badge className={STATUS_STYLES[user.profile_verification_status] || STATUS_STYLES.unverified}>{user.profile_verification_status || 'unverified'}</Badge>
                 {user.is_superuser && <Badge className="bg-violet-100 text-violet-700">Superuser</Badge>}
               </div>
             </div>
           </div>
-          {!user.is_superuser && (
+          <div className="flex flex-wrap justify-end gap-2">
             <button
-              onClick={() => mutation.mutate(!user.is_active)}
+              onClick={() => mutation.mutate({ is_test_user: !user.is_test_user })}
               className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
-                user.is_active ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-green-50 text-green-700 hover:bg-green-100'
+                user.is_test_user
+                  ? 'bg-violet-100 text-violet-700 hover:bg-violet-200'
+                  : 'bg-gray-100 text-gray-700 hover:bg-violet-50 hover:text-violet-700'
               }`}
+              title="Testuser werden aus den internen Statistiken ausgeschlossen"
             >
-              {user.is_active ? <UserX size={15} /> : <UserCheck size={15} />}
-              {user.is_active ? 'Nutzer sperren' : 'Nutzer entsperren'}
+              <Tag size={15} />
+              {user.is_test_user ? 'Testuser-Markierung entfernen' : 'Als Testuser markieren'}
             </button>
-          )}
+            {!user.is_superuser && !user.is_deleted && (
+              <button
+                onClick={() => mutation.mutate({ is_active: !user.is_active })}
+                className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
+                  user.is_active ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-green-50 text-green-700 hover:bg-green-100'
+                }`}
+              >
+                {user.is_active ? <UserX size={15} /> : <UserCheck size={15} />}
+                {user.is_active ? 'Nutzer sperren' : 'Nutzer entsperren'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

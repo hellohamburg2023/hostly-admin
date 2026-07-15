@@ -15,6 +15,7 @@ interface CompactUser {
   city: string
   verification_status: string
   is_active: boolean
+  is_deleted: boolean
 }
 
 interface EventSummary {
@@ -100,7 +101,11 @@ function UserCard({ user, title }: { user: CompactUser | null; title: string }) 
         </div>
       </Link>
       <div className="mt-3 flex flex-wrap gap-1">
-        <Badge className={user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}>{user.is_active ? 'Aktiv' : 'Gesperrt'}</Badge>
+        {user.is_deleted ? (
+          <Badge className="bg-gray-200 text-gray-700">Gelöscht</Badge>
+        ) : (
+          <Badge className={user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}>{user.is_active ? 'Aktiv' : 'Gesperrt'}</Badge>
+        )}
         <Badge className="bg-gray-100 text-gray-600">{user.verification_status || 'unverified'}</Badge>
         {user.city && <Badge className="bg-blue-100 text-blue-700">{user.city}</Badge>}
       </div>
@@ -213,14 +218,16 @@ export default function ReportDetailPage() {
                 <button onClick={() => mutation.mutate('dismiss')} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                   <XCircle size={15} /> Kein Verstoß
                 </button>
-                {report.reported_user && (
+                {report.reported_user && !report.reported_user.is_deleted && (
                   <button onClick={() => mutation.mutate('suspend_reported_user')} className="inline-flex items-center gap-2 rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
                     <ShieldOff size={15} /> Gemeldeten Nutzer sperren
                   </button>
                 )}
-                <button onClick={() => mutation.mutate('suspend_reporter')} className="inline-flex items-center gap-2 rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
-                  <ShieldOff size={15} /> Reporter sperren
-                </button>
+                {!report.reporter.is_deleted && (
+                  <button onClick={() => mutation.mutate('suspend_reporter')} className="inline-flex items-center gap-2 rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
+                    <ShieldOff size={15} /> Reporter sperren
+                  </button>
+                )}
                 {report.event && report.event.status !== 'cancelled' && (
                   <button onClick={() => mutation.mutate('cancel_event')} className="inline-flex items-center gap-2 rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
                     <Ban size={15} /> Event absagen

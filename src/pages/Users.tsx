@@ -4,13 +4,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getApiErrorMessage, getUsers, pageResults, patchUser } from '../api'
 import { activityLabel, formatDate } from '../adminFormat'
 import { Badge, ErrorBanner, Pagination } from '../adminUi'
-import { Eye, Search, UserCheck, UserX } from 'lucide-react'
+import { Eye, Search, Tag, UserCheck, UserX } from 'lucide-react'
 
 interface User {
   id: number
   email: string
   username: string
   is_active: boolean
+  is_test_user: boolean
   is_staff: boolean
   is_superuser: boolean
   date_joined: string
@@ -48,6 +49,7 @@ export default function UsersPage() {
   const [verificationFilter, setVerificationFilter] = useState('')
   const [activityFilter, setActivityFilter] = useState('')
   const [accountState, setAccountState] = useState('')
+  const [testUserFilter, setTestUserFilter] = useState('')
   const [cursor, setCursor] = useState('')
   const qc = useQueryClient()
 
@@ -56,11 +58,13 @@ export default function UsersPage() {
   if (activeFilter) params.is_active = activeFilter
   if (verificationFilter) params.verification_status = verificationFilter
   if (activityFilter) params.activity = activityFilter
+  if (testUserFilter) params.is_test_user = testUserFilter
   if (accountState) params.account_state = accountState
+  else if (activeFilter === 'false') params.account_state = 'registered'
   if (cursor) params.cursor = cursor
 
   const { data, isLoading, error } = useQuery<Page<User> | User[]>({
-    queryKey: ['users', q, activeFilter, verificationFilter, activityFilter, accountState, cursor],
+    queryKey: ['users', q, activeFilter, verificationFilter, activityFilter, accountState, testUserFilter, cursor],
     queryFn: () => getUsers(params),
   })
   const users = pageResults<User>(data)
@@ -68,7 +72,11 @@ export default function UsersPage() {
 
   const mutation = useMutation({
     mutationFn: ({ id, patch }: { id: number; patch: Record<string, unknown> }) => patchUser(id, patch),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] })
+      qc.invalidateQueries({ queryKey: ['stats'] })
+      qc.invalidateQueries({ queryKey: ['analytics'] })
+    },
   })
 
   const setFilter = (setter: (value: string) => void, value: string) => {
@@ -117,6 +125,15 @@ export default function UsersPage() {
           <option value="">Alle Accounts</option>
           <option value="true">Aktiv</option>
           <option value="false">Gesperrt</option>
+        </select>
+        <select
+          value={testUserFilter}
+          onChange={(e) => setFilter(setTestUserFilter, e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+        >
+          <option value="">Alle Nutzertypen</option>
+          <option value="false">Reguläre Nutzer</option>
+          <option value="true">Testuser</option>
         </select>
         <select
           value={verificationFilter}
@@ -186,10 +203,14 @@ export default function UsersPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
-                      <Badge className={u.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}>
-                        {u.is_active ? 'Aktiv' : 'Gesperrt'}
-                      </Badge>
-                      {u.is_deleted && <Badge className="bg-gray-200 text-gray-700">Gelöscht</Badge>}
+                      {u.is_deleted ? (
+                        <Badge className="bg-gray-200 text-gray-700">Gelöscht</Badge>
+                      ) : (
+                        <Badge className={u.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}>
+                          {u.is_active ? 'Aktiv' : 'Gesperrt'}
+                        </Badge>
+                      )}
+                      {u.is_test_user && <Badge className="bg-violet-100 text-violet-700">Testuser</Badge>}
                       {u.profile_verification_status && (
                         <Badge className={BADGE[u.profile_verification_status] || BADGE.unverified}>
                           {u.profile_verification_status}
@@ -207,7 +228,18 @@ export default function UsersPage() {
                       >
                         <Eye size={14} />
                       </Link>
-                      {!u.is_superuser && (
+                      <button
+                        onClick={() => mutation.mutate({ id: u.id, patch: { is_test_user: !u.is_test_user } })}
+                        title={u.is_test_user ? 'Testuser-Markierung entfernen' : 'Als Testuser markieren'}
+                        className={`p-1.5 rounded-lg transition-colors ${
+                          u.is_test_user
+                            ? 'bg-violet-100 text-violet-700 hover:bg-violet-200'
+                            : 'text-gray-500 hover:bg-violet-50 hover:text-violet-700'
+                        }`}
+                      >
+                        <Tag size={14} />
+                      </button>
+                      {!u.is_superuser && !u.is_deleted && (
                         <button
                           onClick={() => mutation.mutate({ id: u.id, patch: { is_active: !u.is_active } })}
                           title={u.is_active ? 'Sperren' : 'Entsperren'}
