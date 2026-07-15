@@ -22,7 +22,7 @@ VITE_API_URL=http://localhost:8000
 
 In Produktion muss `VITE_API_URL` auf die Railway/API-Domain des Hostly-Backends zeigen. Das Backend muss die Admin-Frontend-Origin in `CORS_ALLOWED_ORIGINS` erlauben.
 
-Apple Login wird ausschliesslich im Backend ueber `APPLE_WEB_CLIENT_ID` (Apple Services ID), `ADMIN_FRONTEND_URL=https://admin.meet-hostly.com` und `APPLE_ADMIN_REDIRECT_URI=https://admin.meet-hostly.com/login` eingerichtet. Die Redirect-URL muss im Apple Developer Portal exakt registriert sein. `localhost` kann fuer Apple Login nicht verwendet werden.
+Apple Login wird ausschliesslich im Backend ueber `APPLE_WEB_CLIENT_ID=com.meet-hostly.hostly` (Apple Services ID), `ADMIN_FRONTEND_URL=https://admin.meet-hostly.com` und `APPLE_ADMIN_REDIRECT_URI=https://admin.meet-hostly.com/login` eingerichtet. Die Team ID darf nicht vor die Services ID gesetzt werden. Die Redirect-URL muss im Apple Developer Portal exakt registriert sein. `localhost` kann fuer Apple Login nicht verwendet werden.
 
 Fuer das optionale Produkt-Analytics-Dashboard werden nur im Backend `GA4_PROPERTY_ID` und `GA4_SERVICE_ACCOUNT_JSON` konfiguriert. Service-Account-Daten duerfen nicht als `VITE_*`-Variable im Frontend hinterlegt werden.
 

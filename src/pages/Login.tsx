@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../useAuth'
 import { getApiErrorMessage, getAppleLoginConfig } from '../api'
 import { BrandLogo } from '../BrandLogo'
-import { Apple } from 'lucide-react'
+
+const APPLE_SIGN_IN_BUTTON_URL = 'https://appleid.cdn-apple.com/appleid/button?height=44&width=336&color=black&border_radius=8&border=true&type=sign-in&locale=de_DE'
 
 interface AppleLoginConfig {
   enabled: boolean
@@ -64,6 +65,15 @@ function isAppleCancellation(error: unknown) {
   if (!error || typeof error !== 'object') return false
   const code = 'error' in error ? String(error.error) : ''
   return code === 'user_cancelled_authorize' || code === 'popup_closed_by_user'
+}
+
+function getAppleAuthorizationErrorMessage(error: unknown) {
+  if (!error || typeof error !== 'object' || !('error' in error)) return ''
+  const code = String(error.error)
+  if (code === 'invalid_client') {
+    return 'Apple Login ist falsch konfiguriert: Die hinterlegte Services ID ist bei Apple nicht gültig.'
+  }
+  return ''
 }
 
 export default function Login() {
@@ -143,7 +153,7 @@ export default function Login() {
         setError('')
         return
       }
-      setError(getApiErrorMessage(err, 'Apple Login fehlgeschlagen. Prüfe, ob dein Apple Account einem Superuser entspricht.'))
+      setError(getAppleAuthorizationErrorMessage(err) || getApiErrorMessage(err, 'Apple Login fehlgeschlagen. Prüfe, ob dein Apple Account einem Superuser entspricht.'))
     } finally {
       setAppleLoading(false)
     }
@@ -209,10 +219,15 @@ export default function Login() {
                 type="button"
                 onClick={handleAppleLogin}
                 disabled={appleLoading}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-black py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-900 disabled:opacity-60"
+                aria-label="Mit Apple anmelden"
+                aria-busy={appleLoading}
+                className="flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-black text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-70"
               >
-                <Apple size={17} fill="currentColor" strokeWidth={1.7} />
-                {appleLoading ? 'Apple Anmeldung...' : 'Mit Apple anmelden'}
+                {appleLoading ? (
+                  'Apple Anmeldung...'
+                ) : (
+                  <img src={APPLE_SIGN_IN_BUTTON_URL} alt="" className="h-11 w-full object-fill" />
+                )}
               </button>
               <p className="text-center text-xs text-gray-400">Auf unterstützten Apple-Geräten bestätigt Apple die Anmeldung mit Face ID oder Touch ID.</p>
             </>
