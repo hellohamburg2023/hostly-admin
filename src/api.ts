@@ -14,12 +14,16 @@ export function clearAuthStorage() {
 
 export function getApiErrorMessage(error: unknown, fallback = 'Die Anfrage ist fehlgeschlagen.') {
   if (axios.isAxiosError(error)) {
-    const data = error.response?.data as
-      | { detail?: string | string[]; non_field_errors?: string[] }
-      | undefined
+    const data = error.response?.data as Record<string, unknown> | undefined
     const detail = data?.detail ?? data?.non_field_errors
     if (Array.isArray(detail)) return detail.join(' ')
-    if (detail) return detail
+    if (typeof detail === 'string') return detail
+    if (data) {
+      const fieldMessage = Object.values(data)
+        .flatMap((value) => Array.isArray(value) ? value : [value])
+        .find((value): value is string => typeof value === 'string')
+      if (fieldMessage) return fieldMessage
+    }
     if (error.response?.status === 403) return 'Nur Superuser duerfen auf diese Admin-Webseite zugreifen.'
     if (error.response?.status === 401) return 'E-Mail oder Passwort ist falsch.'
     if (!error.response) return 'API nicht erreichbar. Pruefe VITE_API_URL und ob das Backend laeuft.'
@@ -127,6 +131,30 @@ export const getSafeWalk = (id: number | string) =>
 
 export const getAuditLogs = (params?: Record<string, string>) =>
   api.get('/api/admin/audit-logs/', { params }).then((r) => r.data)
+
+export interface AdminPushNotificationPayload {
+  target_type: 'users' | 'all' | 'active_30d' | 'city' | 'category'
+  user_ids?: number[]
+  city?: string
+  category_id?: number
+  title_de: string
+  body_de: string
+  title_en: string
+  body_en: string
+}
+
+export interface AdminPushNotificationResult {
+  recipient_count: number
+  device_count: number
+  language_counts: { de: number; en: number }
+  sent_device_count?: number
+}
+
+export const previewPushNotification = (data: AdminPushNotificationPayload) =>
+  api.post<AdminPushNotificationResult>('/api/admin/push-notifications/preview/', data).then((r) => r.data)
+
+export const sendPushNotification = (data: AdminPushNotificationPayload) =>
+  api.post<AdminPushNotificationResult>('/api/admin/push-notifications/send/', data).then((r) => r.data)
 
 export const getAnalytics = () => api.get('/api/admin/analytics/').then((r) => r.data)
 

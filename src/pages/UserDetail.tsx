@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { deleteProfilePhoto, getApiErrorMessage, getUser, patchProfile, patchUser } from '../api'
 import { activityLabel, formatDate } from '../adminFormat'
 import { Badge, DetailRow, ErrorBanner, Section } from '../adminUi'
-import { ArrowLeft, ShieldCheck, ShieldOff, Tag, Trash2, UserCheck, UserX } from 'lucide-react'
+import { ArrowLeft, BellRing, ShieldCheck, ShieldOff, Tag, Trash2, UserCheck, UserX } from 'lucide-react'
 
 interface CompactUser {
   id: number
@@ -92,7 +92,7 @@ interface UserDetail {
   reviews_received: { id: number; event_id: number; rating: number; comment: string; created_at: string; reviewer: CompactUser }[]
   blocks_sent: { id: number; created_at: string; blocked: CompactUser }[]
   blocks_received: { id: number; created_at: string; blocker: CompactUser }[]
-  push_devices: { id: number; token_suffix: string; device_id: string; platform: string; enabled: boolean; has_live_activity_start_token: boolean; created_at: string; updated_at: string }[]
+  push_devices: { id: number; token_suffix: string; device_id: string; platform: string; preferred_language: string; enabled: boolean; has_live_activity_start_token: boolean; created_at: string; updated_at: string }[]
   category_follows: { id: number; category_id: number; category_name: string; category_slug: string; created_at: string }[]
   personal_verifications_given: PersonalVerification[]
   personal_verifications_received: PersonalVerification[]
@@ -234,6 +234,14 @@ export default function UserDetailPage() {
             </div>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
+            {!user.is_deleted && (
+              <Link
+                to={`/push-notifications?user=${user.id}`}
+                className="inline-flex items-center gap-2 rounded-lg bg-violet-50 px-3 py-2 text-sm font-medium text-violet-700 hover:bg-violet-100"
+              >
+                <BellRing size={15} /> Push senden
+              </Link>
+            )}
             <button
               onClick={() => mutation.mutate({ is_test_user: !user.is_test_user })}
               className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
@@ -346,7 +354,7 @@ export default function UserDetailPage() {
               ) : user.push_devices.map((device) => (
                 <div key={device.id} className="flex flex-col items-start justify-between gap-2 border-b border-gray-100 px-4 py-3 last:border-0 sm:flex-row sm:items-center sm:gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900">{device.platform} · {device.enabled ? 'aktiv' : 'deaktiviert'}</p>
+                    <p className="text-sm font-medium text-gray-900">{device.platform} · {device.preferred_language === 'en' ? 'English' : 'Deutsch'} · {device.enabled ? 'aktiv' : 'deaktiviert'}</p>
                     <p className="max-w-lg truncate text-xs text-gray-400">Installation {device.device_id || '-'} · Push-Token endet auf {device.token_suffix || '-'}</p>
                     {device.has_live_activity_start_token && <Badge className="mt-1 bg-violet-100 text-violet-700">Live-Activity-Start bereit</Badge>}
                   </div>

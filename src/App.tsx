@@ -20,6 +20,7 @@ const SafeWalkDetailPage = lazy(() => import('./pages/SafeWalkDetail'))
 const ProductAnalyticsPage = lazy(() => import('./pages/ProductAnalytics'))
 const HealthPage = lazy(() => import('./pages/Health'))
 const AuditLogsPage = lazy(() => import('./pages/AuditLogs'))
+const PushNotificationsPage = lazy(() => import('./pages/PushNotifications'))
 
 export default function App() {
   return (
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="product-analytics" element={<ProductAnalyticsPage />} />
           <Route path="health" element={<HealthPage />} />
           <Route path="audit" element={<AuditLogsPage />} />
+          <Route path="push-notifications" element={<PushNotificationsPage />} />
           <Route path="categories" element={<CategoriesPage />} />
           <Route path="interests" element={<InterestsPage />} />
           <Route path="ideas" element={<IdeasPage />} />

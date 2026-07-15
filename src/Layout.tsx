@@ -6,12 +6,13 @@ import {
   LayoutDashboard, Users, CalendarDays, AlertTriangle,
   Tag, Sparkles, Lightbulb, LogOut, ShieldCheck,
   Footprints, Activity, ClipboardList,
-  ChartNoAxesCombined, Menu, X,
+  BellRing, ChartNoAxesCombined, Menu, X,
 } from 'lucide-react'
 
 const nav = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/users', label: 'Nutzer', icon: Users },
+  { to: '/push-notifications', label: 'Push-Nachrichten', icon: BellRing },
   { to: '/verification', label: 'Verifizierung', icon: ShieldCheck },
   { to: '/events', label: 'Events', icon: CalendarDays },
   { to: '/reports', label: 'Meldungen', icon: AlertTriangle },
