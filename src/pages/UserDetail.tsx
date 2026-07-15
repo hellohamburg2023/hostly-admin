@@ -52,6 +52,10 @@ interface UserDetail {
   inactive_days: number | null
   email_verified_at: string | null
   onboarding_completed_at: string | null
+  accepted_rules_at: string | null
+  accepted_rules_version: string
+  deleted_at: string | null
+  is_deleted: boolean
   profile_display_name: string
   profile_city: string
   profile_verification_status: string
@@ -67,7 +71,9 @@ interface UserDetail {
     city: string
     gender: string
     age_range: string
+    birth_date: string | null
     women_only_eligible: boolean
+    queer_friendly: boolean
     verification_status: string
     verification_note: string
     verification_reviewed_at: string | null
@@ -85,8 +91,20 @@ interface UserDetail {
   reviews_received: { id: number; event_id: number; rating: number; comment: string; created_at: string; reviewer: CompactUser }[]
   blocks_sent: { id: number; created_at: string; blocked: CompactUser }[]
   blocks_received: { id: number; created_at: string; blocker: CompactUser }[]
-  push_devices: { id: number; token: string; platform: string; enabled: boolean; created_at: string; updated_at: string }[]
+  push_devices: { id: number; token_suffix: string; device_id: string; platform: string; enabled: boolean; has_live_activity_start_token: boolean; created_at: string; updated_at: string }[]
+  category_follows: { id: number; category_id: number; category_name: string; category_slug: string; created_at: string }[]
+  personal_verifications_given: PersonalVerification[]
+  personal_verifications_received: PersonalVerification[]
   audit_logs: { id: number; action: string; target_repr: string; metadata: Record<string, unknown>; created_at: string; actor_email: string }[]
+}
+
+interface PersonalVerification {
+  id: number
+  event_id: number
+  event_title: string
+  verifier: CompactUser
+  verified_user: CompactUser
+  created_at: string
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -197,6 +215,7 @@ export default function UserDetailPage() {
               <p className="text-sm text-gray-500">{user.email}</p>
               <div className="mt-2 flex flex-wrap gap-1">
                 <Badge className={user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}>{user.is_active ? 'Aktiv' : 'Gesperrt'}</Badge>
+                {user.is_deleted && <Badge className="bg-gray-200 text-gray-700">Gelöscht</Badge>}
                 <Badge className={STATUS_STYLES[user.profile_verification_status] || STATUS_STYLES.unverified}>{user.profile_verification_status || 'unverified'}</Badge>
                 {user.is_superuser && <Badge className="bg-violet-100 text-violet-700">Superuser</Badge>}
               </div>
@@ -225,6 +244,8 @@ export default function UserDetailPage() {
                 <DetailRow label="Registriert" value={formatDate(user.date_joined, true)} />
                 <DetailRow label="E-Mail verifiziert" value={formatDate(user.email_verified_at, true)} />
                 <DetailRow label="Onboarding" value={formatDate(user.onboarding_completed_at, true)} />
+                <DetailRow label="Regeln akzeptiert" value={user.accepted_rules_at ? `${formatDate(user.accepted_rules_at, true)} · Version ${user.accepted_rules_version || '-'}` : 'Noch nicht akzeptiert'} />
+                <DetailRow label="Account gelöscht" value={user.deleted_at ? formatDate(user.deleted_at, true) : 'Nein'} />
                 <DetailRow label="Stadt" value={user.profile?.city || user.profile_city} />
                 <DetailRow label="Profilnote" value={user.profile?.verification_note} />
               </dl>
@@ -267,7 +288,9 @@ export default function UserDetailPage() {
                 <DetailRow label="Bio" value={user.profile?.bio} />
                 <DetailRow label="Gender" value={user.profile?.gender} />
                 <DetailRow label="Age Range" value={user.profile?.age_range} />
+                <DetailRow label="Geburtsdatum" value={user.profile?.birth_date ? new Date(`${user.profile.birth_date}T00:00:00`).toLocaleDateString('de-DE') : '-'} />
                 <DetailRow label="Women only eligible" value={user.profile?.women_only_eligible ? 'Ja' : 'Nein'} />
+                <DetailRow label="Queer-friendly" value={user.profile?.queer_friendly ? 'Ja' : 'Nein'} />
                 <DetailRow label="Bewertung" value={`${user.profile?.rating_average ?? 0} (${user.profile?.rating_count ?? 0})`} />
                 <DetailRow label="Interessen" value={user.profile?.interests?.join(', ')} />
               </dl>
@@ -298,11 +321,46 @@ export default function UserDetailPage() {
                 <div key={device.id} className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 last:border-0">
                   <div>
                     <p className="text-sm font-medium text-gray-900">{device.platform} · {device.enabled ? 'aktiv' : 'deaktiviert'}</p>
-                    <p className="max-w-lg truncate text-xs text-gray-400">{device.token}</p>
+                    <p className="max-w-lg truncate text-xs text-gray-400">Installation {device.device_id || '-'} · Push-Token endet auf {device.token_suffix || '-'}</p>
+                    {device.has_live_activity_start_token && <Badge className="mt-1 bg-violet-100 text-violet-700">Live-Activity-Start bereit</Badge>}
                   </div>
                   <p className="text-xs text-gray-400">{formatDate(device.updated_at, true)}</p>
                 </div>
               ))}
+            </div>
+          </Section>
+          <Section title="Kategorie-Abonnements">
+            <div className="rounded-xl border border-gray-200 bg-white">
+              {user.category_follows.length === 0 ? (
+                <p className="p-4 text-sm text-gray-400">Keine Kategorien abonniert</p>
+              ) : user.category_follows.map((follow) => (
+                <div key={follow.id} className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 last:border-0">
+                  <div><p className="text-sm font-medium text-gray-900">{follow.category_name}</p><p className="text-xs text-gray-400">{follow.category_slug}</p></div>
+                  <p className="text-xs text-gray-400">seit {formatDate(follow.created_at)}</p>
+                </div>
+              ))}
+            </div>
+          </Section>
+          <Section title="Persönliche Verifizierungen">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="rounded-xl border border-gray-200 bg-white p-4">
+                <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">Erhalten ({user.personal_verifications_received.length})</h4>
+                {user.personal_verifications_received.length === 0 ? <p className="text-sm text-gray-400">Keine</p> : user.personal_verifications_received.map((verification) => (
+                  <div key={verification.id} className="mb-3 text-sm last:mb-0">
+                    <p className="text-gray-700">Von <Link to={`/users/${verification.verifier.id}`} className="font-medium text-violet-700">{verification.verifier.display_name || verification.verifier.email}</Link></p>
+                    <Link to={`/events/${verification.event_id}`} className="text-xs text-gray-400 hover:text-violet-700">{verification.event_title} · {formatDate(verification.created_at)}</Link>
+                  </div>
+                ))}
+              </div>
+              <div className="rounded-xl border border-gray-200 bg-white p-4">
+                <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">Vergeben ({user.personal_verifications_given.length})</h4>
+                {user.personal_verifications_given.length === 0 ? <p className="text-sm text-gray-400">Keine</p> : user.personal_verifications_given.map((verification) => (
+                  <div key={verification.id} className="mb-3 text-sm last:mb-0">
+                    <p className="text-gray-700">Für <Link to={`/users/${verification.verified_user.id}`} className="font-medium text-violet-700">{verification.verified_user.display_name || verification.verified_user.email}</Link></p>
+                    <Link to={`/events/${verification.event_id}`} className="text-xs text-gray-400 hover:text-violet-700">{verification.event_title} · {formatDate(verification.created_at)}</Link>
+                  </div>
+                ))}
+              </div>
             </div>
           </Section>
           <Section title="Blocks und Bewertungen">

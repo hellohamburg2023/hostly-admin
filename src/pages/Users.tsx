@@ -25,6 +25,8 @@ interface User {
   hosted_event_count: number
   participation_count: number
   reports_received_count: number
+  deleted_at: string | null
+  is_deleted: boolean
 }
 
 interface Page<T> {
@@ -45,6 +47,7 @@ export default function UsersPage() {
   const [activeFilter, setActiveFilter] = useState('')
   const [verificationFilter, setVerificationFilter] = useState('')
   const [activityFilter, setActivityFilter] = useState('')
+  const [accountState, setAccountState] = useState('')
   const [cursor, setCursor] = useState('')
   const qc = useQueryClient()
 
@@ -53,10 +56,11 @@ export default function UsersPage() {
   if (activeFilter) params.is_active = activeFilter
   if (verificationFilter) params.verification_status = verificationFilter
   if (activityFilter) params.activity = activityFilter
+  if (accountState) params.account_state = accountState
   if (cursor) params.cursor = cursor
 
   const { data, isLoading, error } = useQuery<Page<User> | User[]>({
-    queryKey: ['users', q, activeFilter, verificationFilter, activityFilter, cursor],
+    queryKey: ['users', q, activeFilter, verificationFilter, activityFilter, accountState, cursor],
     queryFn: () => getUsers(params),
   })
   const users = pageResults<User>(data)
@@ -96,6 +100,15 @@ export default function UsersPage() {
             className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
         </div>
+        <select
+          value={accountState}
+          onChange={(e) => setFilter(setAccountState, e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+        >
+          <option value="">Alle Kontostände</option>
+          <option value="registered">Registriert</option>
+          <option value="deleted">Gelöscht</option>
+        </select>
         <select
           value={activeFilter}
           onChange={(e) => setFilter(setActiveFilter, e.target.value)}
@@ -176,6 +189,7 @@ export default function UsersPage() {
                       <Badge className={u.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}>
                         {u.is_active ? 'Aktiv' : 'Gesperrt'}
                       </Badge>
+                      {u.is_deleted && <Badge className="bg-gray-200 text-gray-700">Gelöscht</Badge>}
                       {u.profile_verification_status && (
                         <Badge className={BADGE[u.profile_verification_status] || BADGE.unverified}>
                           {u.profile_verification_status}

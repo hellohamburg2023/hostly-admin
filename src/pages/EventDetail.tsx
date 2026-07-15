@@ -3,7 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { deleteEventPhoto, getApiErrorMessage, getEvent, patchEvent } from '../api'
 import { formatDate } from '../adminFormat'
 import { Badge, DetailRow, ErrorBanner, Section } from '../adminUi'
-import { ArrowLeft, Ban, Trash2 } from 'lucide-react'
+import { SAFETY_STATUS_LABELS, SAFETY_STATUS_STYLES } from '../safeWalk'
+import { ArrowLeft, Ban, MapPin, Trash2 } from 'lucide-react'
 
 interface CompactUser {
   id: number
@@ -35,6 +36,8 @@ interface EventDetail {
   city: string
   public_location: string
   precise_location: string
+  latitude: string | null
+  longitude: string | null
   starts_at: string
   ends_at: string | null
   min_participants: number
@@ -44,6 +47,12 @@ interface EventDetail {
   report_count: number
   women_only: boolean
   safety_badges: string[]
+  rules: string
+  age_restriction_enabled: boolean
+  min_age: number | null
+  max_age: number | null
+  icon: string
+  interests: string[]
   host_id: number
   host_email: string
   host_name: string
@@ -58,7 +67,7 @@ interface EventDetail {
   photos: { id: number; uploaded_by: CompactUser; photo_url: string; caption: string; created_at: string }[]
   safe_walks: {
     id: number
-    user: CompactUser
+    user: CompactUser | null
     status: string
     destination_label: string
     expected_arrival_at: string
@@ -71,6 +80,7 @@ interface EventDetail {
   }[]
   chat_messages: { id: number; sender: CompactUser; message_type: string; body: string; created_at: string }[]
   audit_logs: { id: number; action: string; actor_email: string; created_at: string }[]
+  personal_verifications: { id: number; verifier: CompactUser; verified_user: CompactUser; created_at: string }[]
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -87,7 +97,8 @@ const STATUS_STYLES: Record<string, string> = {
   arrived: 'bg-blue-100 text-blue-700',
 }
 
-function UserLine({ user }: { user: CompactUser }) {
+function UserLine({ user }: { user: CompactUser | null }) {
+  if (!user) return <p className="text-sm font-medium text-gray-500">Gelöschtes Mitglied</p>
   return (
     <Link to={`/users/${user.id}`} className="flex items-center gap-3 hover:text-violet-700">
       {user.photo_url ? (
@@ -133,6 +144,10 @@ export default function EventDetailPage() {
   if (isLoading) return <div className="p-8 text-gray-400">Laden...</div>
   if (!event) return <div className="p-8 text-gray-400">Event nicht gefunden</div>
 
+  const mapUrl = event.latitude && event.longitude
+    ? `https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`
+    : ''
+
   return (
     <div className="p-8">
       <Link to="/events" className="mb-5 inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900">
@@ -172,10 +187,14 @@ export default function EventDetailPage() {
                 <DetailRow label="Stadt" value={event.city} />
                 <DetailRow label="Öffentlicher Ort" value={event.public_location} />
                 <DetailRow label="Genauer Ort" value={event.precise_location} />
+                <DetailRow label="Koordinaten" value={mapUrl ? <a href={mapUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-violet-700 hover:text-violet-900"><MapPin size={13} /> Karte öffnen</a> : '-'} />
                 <DetailRow label="Start" value={formatDate(event.starts_at, true)} />
                 <DetailRow label="Ende" value={formatDate(event.ends_at, true)} />
                 <DetailRow label="Teilnehmer" value={`${event.participant_count}/${event.participant_limit} · min. ${event.min_participants}`} />
                 <DetailRow label="Sicherheitsbadges" value={event.safety_badges?.join(', ')} />
+                <DetailRow label="Altersbereich" value={event.age_restriction_enabled ? `${event.min_age ?? '?'} bis ${event.max_age ?? '?'} Jahre` : 'Keine Altersbeschränkung'} />
+                <DetailRow label="Interessen" value={event.interests?.join(', ')} />
+                <DetailRow label="Regeln" value={event.rules} />
               </dl>
             </div>
           </Section>
@@ -263,7 +282,10 @@ export default function EventDetailPage() {
                 <div key={walk.id} className="border-b border-gray-100 px-4 py-3 last:border-0">
                   <div className="flex items-center justify-between gap-3">
                     <UserLine user={walk.user} />
-                    <Badge className={STATUS_STYLES[walk.status] || STATUS_STYLES.draft}>{walk.status}</Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge className={SAFETY_STATUS_STYLES[walk.status] || STATUS_STYLES.draft}>{SAFETY_STATUS_LABELS[walk.status] || walk.status}</Badge>
+                      <Link to={`/safe-walks/${walk.id}`} className="text-xs font-medium text-violet-700 hover:text-violet-900">Details</Link>
+                    </div>
                   </div>
                   <p className="mt-1 text-xs text-gray-500">
                     Ziel: {walk.destination_label} · Erwartet {formatDate(walk.expected_arrival_at, true)}
@@ -273,6 +295,24 @@ export default function EventDetailPage() {
                     Kontakte: {walk.contact_count} · Grace: {walk.grace_minutes} Min.
                     {walk.check_in_sent_at ? ` · Check-in-Push ${formatDate(walk.check_in_sent_at, true)}` : ' · Check-in noch nicht gesendet'}
                   </p>
+                </div>
+              ))}
+            </div>
+          </Section>
+
+          <Section title="Persönliche Verifizierungen">
+            <div className="rounded-xl border border-gray-200 bg-white">
+              {event.personal_verifications.length === 0 ? (
+                <p className="p-4 text-sm text-gray-400">Keine persönlichen Verifizierungen aus diesem Event</p>
+              ) : event.personal_verifications.map((verification) => (
+                <div key={verification.id} className="flex items-center justify-between gap-4 border-b border-gray-100 px-4 py-3 last:border-0">
+                  <p className="text-sm text-gray-700">
+                    <Link to={`/users/${verification.verifier.id}`} className="font-medium text-violet-700">{verification.verifier.display_name || verification.verifier.email}</Link>
+                    {' hat '}
+                    <Link to={`/users/${verification.verified_user.id}`} className="font-medium text-violet-700">{verification.verified_user.display_name || verification.verified_user.email}</Link>
+                    {' persönlich verifiziert'}
+                  </p>
+                  <p className="shrink-0 text-xs text-gray-400">{formatDate(verification.created_at, true)}</p>
                 </div>
               ))}
             </div>

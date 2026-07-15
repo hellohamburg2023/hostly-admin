@@ -2,6 +2,8 @@
 
 React/Vite Admin-Webseite fuer die Hostly-App. Die Seite nutzt die Django-API aus dem Repository `../hostly/backend` und ist fuer administrative Datenpflege gedacht.
 
+Enthalten sind unter anderem Moderation, Nutzer- und Eventdetails, Verifizierungen, Safety Operations fuer Safe Walk und Meeting Safety, Infrastruktur-Health, Audit-Protokolle sowie ein optionales aggregiertes Firebase/GA4-Produkt-Dashboard.
+
 ## Login
 
 - Admin-Login laeuft ueber `POST /api/admin/login/`.
@@ -18,6 +20,8 @@ VITE_API_URL=http://localhost:8000
 ```
 
 In Produktion muss `VITE_API_URL` auf die Railway/API-Domain des Hostly-Backends zeigen. Das Backend muss die Admin-Frontend-Origin in `CORS_ALLOWED_ORIGINS` erlauben.
+
+Fuer das optionale Produkt-Analytics-Dashboard werden nur im Backend `GA4_PROPERTY_ID` und `GA4_SERVICE_ACCOUNT_JSON` konfiguriert. Service-Account-Daten duerfen nicht als `VITE_*`-Variable im Frontend hinterlegt werden.
 
 ## Entwicklung
 

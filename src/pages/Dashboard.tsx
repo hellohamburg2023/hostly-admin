@@ -16,6 +16,7 @@ interface Stats {
     active_30d: number
     inactive_over_30d: number
     never_active: number
+    deleted: number
   }
   events: { total: number; by_status: Record<string, number> }
   profiles: { pending_verification: number; verified: number }
@@ -32,7 +33,7 @@ interface Analytics {
   reports_by_event: { event_id: number; event__title: string; count: number }[]
   reports_by_user: { reported_user_id: number; reported_user__email: string; count: number }[]
   verification: { total: number; verified: number; pending: number; rate: number }
-  safe_walks: { total: number; active: number; escalated: number; escalation_rate: number }
+  safe_walks: { total: number; active: number; escalated: number; needs_attention: number; safe_walk: number; meeting_safety: number; escalation_rate: number }
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -99,18 +100,20 @@ export default function Dashboard() {
   const userGrowth = analytics?.users_by_week.map((row) => ({ ...row, label: weekLabel(row.period) })) ?? []
   const eventGrowth = analytics?.events_by_week.map((row) => ({ ...row, label: weekLabel(row.period) })) ?? []
   const cityData = analytics?.users_by_city.map((row) => ({ ...row, city: row.city || 'Ohne Stadt' })) ?? []
+  const liveSafetySessions = ['ready', 'active', 'arrival_due', 'grace_period', 'escalated']
+    .reduce((sum, status) => sum + (data.safe_walks[status] ?? 0), 0)
 
   return (
     <div className="p-8">
       <h2 className="text-xl font-bold text-gray-900 mb-6">Dashboard</h2>
 
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
-        <KPI icon={Users} label="Nutzer gesamt" value={data.users.total} sub={`${data.users.active} nicht gesperrt`} color="violet" />
+        <KPI icon={Users} label="Nutzer gesamt" value={data.users.total} sub={`${data.users.active} aktiv · ${data.users.deleted} gelöscht`} color="violet" />
         <KPI icon={Activity} label="Aktiv 7 Tage" value={data.users.active_7d} sub={`${data.users.active_30d} in 30 Tagen`} color="green" />
         <KPI icon={TrendingUp} label="Neu diese Woche" value={data.users.new_this_week} sub={`${data.users.new_this_month} diesen Monat`} color="blue" />
         <KPI icon={CalendarDays} label="Events gesamt" value={data.events.total} color="green" />
         <KPI icon={AlertTriangle} label="Offene Meldungen" value={data.reports.open} sub={`${data.reports.reviewing} in Prüfung`} color="red" />
-        <KPI icon={Footprints} label="Safe-Walks aktiv" value={data.safe_walks.active ?? 0} sub={`${data.safe_walks.escalated ?? 0} eskaliert`} color="amber" />
+        <KPI icon={Footprints} label="Safety Sessions live" value={liveSafetySessions} sub={`${analytics?.safe_walks.needs_attention ?? data.safe_walks.escalated ?? 0} mit Handlungsbedarf`} color="amber" />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
@@ -206,7 +209,7 @@ export default function Dashboard() {
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">Safe-Walk-Nutzung</h3>
           <p className="text-2xl font-bold text-gray-900">{analytics?.safe_walks.total ?? 0}</p>
-          <p className="text-xs text-gray-500">{analytics?.safe_walks.escalation_rate ?? 0}% Eskalationen</p>
+          <p className="text-xs text-gray-500">{analytics?.safe_walks.meeting_safety ?? 0} Meeting Safety · {analytics?.safe_walks.escalation_rate ?? 0}% Eskalationen</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">Ideen</h3>

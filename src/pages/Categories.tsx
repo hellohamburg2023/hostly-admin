@@ -4,7 +4,7 @@ import { getApiErrorMessage, getCategories, createCategory, patchCategory, delet
 import { ErrorBanner } from '../adminUi'
 import { Plus, Pencil, Trash2, Check, X } from 'lucide-react'
 
-interface Category { id: number; name: string; slug: string; icon: string; event_count: number }
+interface Category { id: number; name: string; slug: string; icon: string; event_count: number; follower_count: number }
 
 export default function CategoriesPage() {
   const qc = useQueryClient()
@@ -63,6 +63,7 @@ export default function CategoriesPage() {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Slug</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Icon</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Events</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Abonnenten</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Aktionen</th>
               </tr>
             </thead>
@@ -72,6 +73,7 @@ export default function CategoriesPage() {
                   <td className="px-4 py-2"><input autoFocus value={newValues.name} onChange={e => setNewValues(v => ({ ...v, name: e.target.value }))} placeholder="Name" className="w-full border border-gray-300 rounded px-2 py-1 text-sm" /></td>
                   <td className="px-4 py-2"><input value={newValues.slug} onChange={e => setNewValues(v => ({ ...v, slug: e.target.value }))} placeholder="slug" className="w-full border border-gray-300 rounded px-2 py-1 text-sm" /></td>
                   <td className="px-4 py-2"><input value={newValues.icon} onChange={e => setNewValues(v => ({ ...v, icon: e.target.value }))} placeholder="emoji / code" className="w-full border border-gray-300 rounded px-2 py-1 text-sm" /></td>
+                  <td className="px-4 py-2 text-gray-400">—</td>
                   <td className="px-4 py-2 text-gray-400">—</td>
                   <td className="px-4 py-2 flex gap-1">
                     <button onClick={() => createMut.mutate(newValues)} className="p-1.5 text-green-600 hover:bg-green-50 rounded"><Check size={14} /></button>
@@ -91,6 +93,7 @@ export default function CategoriesPage() {
                     {editId === c.id ? <input value={editValues.icon} onChange={e => setEditValues(v => ({ ...v, icon: e.target.value }))} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" /> : <span className="text-lg">{c.icon}</span>}
                   </td>
                   <td className="px-4 py-3 text-gray-600">{c.event_count}</td>
+                  <td className="px-4 py-3 text-gray-600">{c.follower_count}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
                       {editId === c.id ? (
@@ -101,7 +104,12 @@ export default function CategoriesPage() {
                       ) : (
                         <>
                           <button onClick={() => startEdit(c)} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded"><Pencil size={14} /></button>
-                          <button onClick={() => { if (confirm(`Kategorie "${c.name}" löschen?`)) deleteMut.mutate(c.id) }} className="p-1.5 text-red-500 hover:bg-red-50 rounded"><Trash2 size={14} /></button>
+                          <button
+                            disabled={c.event_count > 0}
+                            title={c.event_count > 0 ? 'Kategorien mit Events können nicht gelöscht werden' : 'Kategorie löschen'}
+                            onClick={() => { if (confirm(`Kategorie "${c.name}" löschen? ${c.follower_count} Abonnements werden dabei entfernt.`)) deleteMut.mutate(c.id) }}
+                            className="p-1.5 text-red-500 hover:bg-red-50 rounded disabled:cursor-not-allowed disabled:opacity-30"
+                          ><Trash2 size={14} /></button>
                         </>
                       )}
                     </div>

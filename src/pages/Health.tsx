@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { getApiErrorMessage, getAnalytics, getHealth } from '../api'
 import { Badge, ErrorBanner } from '../adminUi'
-import { CheckCircle, RefreshCw, XCircle } from 'lucide-react'
+import { CheckCircle, CircleDashed, RefreshCw, XCircle } from 'lucide-react'
 
 interface Health {
-  checks: Record<string, { ok: boolean; detail?: string; backend?: string; sandbox?: boolean }>
+  checks: Record<string, { ok: boolean; optional?: boolean; detail?: string; backend?: string; sandbox?: boolean }>
   workers: {
-    safe_walk_cron: { ok: boolean; overdue_check_ins: number; overdue_escalations: number }
+    safe_walk_cron: { ok: boolean; heartbeat_ok: boolean; last_seen_at: string | null; last_result: Record<string, unknown>; overdue_check_ins: number; overdue_escalations: number }
     event_reminder_cron: { ok: boolean; sample: string[] }
   }
 }
@@ -17,7 +17,7 @@ interface Analytics {
   safe_walks: { total: number; active: number; escalated: number; escalation_rate: number }
 }
 
-function CheckCard({ name, check }: { name: string; check: { ok: boolean; detail?: string; backend?: string; sandbox?: boolean } }) {
+function CheckCard({ name, check }: { name: string; check: { ok: boolean; optional?: boolean; detail?: string; backend?: string; sandbox?: boolean } }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5">
       <div className="flex items-start justify-between gap-3">
@@ -27,7 +27,7 @@ function CheckCard({ name, check }: { name: string; check: { ok: boolean; detail
             {check.detail || check.backend || (check.sandbox !== undefined ? `Sandbox: ${check.sandbox ? 'Ja' : 'Nein'}` : 'Konfiguration vorhanden')}
           </p>
         </div>
-        {check.ok ? <CheckCircle size={18} className="text-green-600" /> : <XCircle size={18} className="text-red-600" />}
+        {check.ok ? <CheckCircle size={18} className="text-green-600" /> : check.optional ? <CircleDashed size={18} className="text-amber-600" /> : <XCircle size={18} className="text-red-600" />}
       </div>
     </div>
   )
@@ -64,7 +64,7 @@ export default function HealthPage() {
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
             {Object.entries(health.checks).map(([name, check]) => (
-              <CheckCard key={name} name={name.toUpperCase()} check={check} />
+              <CheckCard key={name} name={name.replaceAll('_', ' ').toUpperCase()} check={check} />
             ))}
           </div>
 
@@ -78,6 +78,9 @@ export default function HealthPage() {
               </div>
               <p className="mb-4 text-xs text-gray-500">
                 Läuft im Container als process_safe_walks-Loop alle 30 Sekunden; parallele Läufe werden idempotent abgefangen.
+              </p>
+              <p className="mb-4 text-xs text-gray-500">
+                Heartbeat: {health.workers.safe_walk_cron.last_seen_at ? new Date(health.workers.safe_walk_cron.last_seen_at).toLocaleString('de-DE') : 'noch nicht empfangen'}
               </p>
               <dl className="grid grid-cols-2 gap-4">
                 <div>

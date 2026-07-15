@@ -118,10 +118,16 @@ export const reportAction = (id: number, data: Record<string, unknown>) =>
 export const getSafeWalks = (params?: Record<string, string>) =>
   api.get('/api/admin/safe-walks/', { params }).then((r) => r.data)
 
+export const getSafeWalk = (id: number | string) =>
+  api.get(`/api/admin/safe-walks/${id}/`).then((r) => r.data)
+
 export const getAuditLogs = (params?: Record<string, string>) =>
   api.get('/api/admin/audit-logs/', { params }).then((r) => r.data)
 
 export const getAnalytics = () => api.get('/api/admin/analytics/').then((r) => r.data)
+
+export const getProductAnalytics = (days: number) =>
+  api.get('/api/admin/product-analytics/', { params: { days } }).then((r) => r.data)
 
 export const getHealth = () => api.get('/api/admin/health/').then((r) => r.data)
 

@@ -5,6 +5,7 @@ import {
   LayoutDashboard, Users, CalendarDays, AlertTriangle,
   Tag, Sparkles, Lightbulb, LogOut, ShieldCheck,
   Footprints, Activity, ClipboardList,
+  ChartNoAxesCombined,
 } from 'lucide-react'
 
 const nav = [
@@ -13,7 +14,8 @@ const nav = [
   { to: '/verification', label: 'Verifizierung', icon: ShieldCheck },
   { to: '/events', label: 'Events', icon: CalendarDays },
   { to: '/reports', label: 'Meldungen', icon: AlertTriangle },
-  { to: '/safe-walks', label: 'Safe-Walks', icon: Footprints },
+  { to: '/safe-walks', label: 'Safety Operations', icon: Footprints },
+  { to: '/product-analytics', label: 'Produkt-Analytics', icon: ChartNoAxesCombined },
   { to: '/health', label: 'Betrieb', icon: Activity },
   { to: '/audit', label: 'Audit', icon: ClipboardList },
   { to: '/ideas', label: 'Event-Ideen', icon: Lightbulb },
