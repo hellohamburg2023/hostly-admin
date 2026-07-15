@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../useAuth'
 import { getApiErrorMessage, getAppleLoginConfig } from '../api'
@@ -61,18 +61,31 @@ function loadAppleScript() {
   return appleScriptPromise
 }
 
+function getAppleAuthorizationErrorCode(error: unknown) {
+  if (!error || typeof error !== 'object') return ''
+  if ('error' in error && typeof error.error === 'string') return error.error
+  if ('detail' in error && error.detail && typeof error.detail === 'object' && 'error' in error.detail && typeof error.detail.error === 'string') {
+    return error.detail.error
+  }
+  return ''
+}
+
 function isAppleCancellation(error: unknown) {
-  if (!error || typeof error !== 'object') return false
-  const code = 'error' in error ? String(error.error) : ''
+  const code = getAppleAuthorizationErrorCode(error)
   return code === 'user_cancelled_authorize' || code === 'popup_closed_by_user'
 }
 
 function getAppleAuthorizationErrorMessage(error: unknown) {
-  if (!error || typeof error !== 'object' || !('error' in error)) return ''
-  const code = String(error.error)
-  if (code === 'invalid_client') {
-    return 'Apple Login ist falsch konfiguriert: Die hinterlegte Services ID ist bei Apple nicht gültig.'
+  const code = getAppleAuthorizationErrorCode(error)
+  const messages: Record<string, string> = {
+    invalid_client: 'Apple Login ist falsch konfiguriert: Die hinterlegte Services ID ist bei Apple nicht gültig.',
+    invalid_redirect_uri: 'Apple Login ist falsch konfiguriert: Die Rückgabe-URL stimmt nicht mit Apple überein.',
+    invalid_request: 'Apple konnte die Login-Anfrage nicht verarbeiten. Bitte lade die Seite neu und versuche es erneut.',
+    popup_blocked_by_browser: 'Das Apple-Loginfenster wurde vom Browser blockiert. Bitte erlaube Pop-ups für diese Seite.',
+    user_trigger_new_signin_flow: 'Eine vorherige Apple-Anmeldung war noch aktiv. Bitte versuche es erneut.',
   }
+  if (messages[code]) return messages[code]
+  if (/^[a-z0-9_-]{1,80}$/i.test(code)) return `Apple Login wurde abgebrochen (${code}).`
   return ''
 }
 
@@ -85,6 +98,30 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [appleConfig, setAppleConfig] = useState<AppleLoginConfig | null>(null)
   const [appleLoading, setAppleLoading] = useState(false)
+  const [appleReady, setAppleReady] = useState(false)
+
+  const prepareAppleLogin = useCallback(async () => {
+    setAppleReady(false)
+    const config = await getAppleLoginConfig() as AppleLoginConfig
+    if (config.enabled) {
+      if (!config.client_id || !config.state || !config.nonce) {
+        throw new Error(config.reason || 'Apple Login ist im Backend noch nicht vollständig konfiguriert.')
+      }
+      await loadAppleScript()
+      if (!window.AppleID) throw new Error('Apple Login konnte nicht geladen werden.')
+      window.AppleID.auth.init({
+        clientId: config.client_id,
+        scope: 'name email',
+        redirectURI: config.redirect_uri,
+        state: config.state,
+        nonce: config.nonce,
+        usePopup: true,
+      })
+    }
+    setAppleConfig(config)
+    setAppleReady(config.enabled)
+    return config
+  }, [])
 
   useEffect(() => {
     if (user) navigate('/', { replace: true })
@@ -92,17 +129,14 @@ export default function Login() {
 
   useEffect(() => {
     let cancelled = false
-    getAppleLoginConfig()
-      .then((config: AppleLoginConfig) => {
-        if (!cancelled) setAppleConfig(config)
-        if (config.enabled) return loadAppleScript()
-        return undefined
-      })
-      .catch(() => {
-        if (!cancelled) setAppleConfig({ enabled: false, client_id: '', redirect_uri: '', reason: 'Apple-Konfiguration konnte nicht geladen werden.' })
-      })
+    prepareAppleLogin().catch(() => {
+      if (!cancelled) {
+        setAppleReady(false)
+        setAppleConfig({ enabled: false, client_id: '', redirect_uri: '', reason: 'Apple-Konfiguration konnte nicht geladen werden.' })
+      }
+    })
     return () => { cancelled = true }
-  }, [])
+  }, [prepareAppleLogin])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -121,22 +155,14 @@ export default function Login() {
   const handleAppleLogin = async () => {
     setError('')
     setAppleLoading(true)
+    let loginCompleted = false
     try {
-      const config = await getAppleLoginConfig() as AppleLoginConfig
-      setAppleConfig(config)
-      if (!config.enabled || !config.client_id || !config.state || !config.nonce) {
-        throw new Error(config.reason || 'Apple Login ist im Backend noch nicht vollständig konfiguriert.')
+      const config = appleConfig
+      if (!appleReady || !config?.enabled || !config.state || !window.AppleID) {
+        throw new Error('Apple Login wird noch vorbereitet. Bitte versuche es gleich erneut.')
       }
-      await loadAppleScript()
-      if (!window.AppleID) throw new Error('Apple Login konnte nicht geladen werden.')
-      window.AppleID.auth.init({
-        clientId: config.client_id,
-        scope: 'name email',
-        redirectURI: config.redirect_uri,
-        state: config.state,
-        nonce: config.nonce,
-        usePopup: true,
-      })
+      // Keep this call synchronous with the button click. Safari otherwise
+      // treats Apple's authentication window as a blocked popup.
       const result = await window.AppleID.auth.signIn()
       const identityToken = result.authorization?.id_token
       if (!identityToken) throw new Error('Apple hat kein Login-Token zurückgegeben.')
@@ -147,15 +173,22 @@ export default function Login() {
       const lastName = result.user?.name?.lastName || ''
       const fullName = [firstName, lastName].filter(Boolean).join(' ')
       await signInWithApple(identityToken, result.authorization.state, fullName)
+      loginCompleted = true
       navigate('/')
     } catch (err: unknown) {
       if (isAppleCancellation(err)) {
         setError('')
         return
       }
-      setError(getAppleAuthorizationErrorMessage(err) || getApiErrorMessage(err, 'Apple Login fehlgeschlagen. Prüfe, ob dein Apple Account einem Superuser entspricht.'))
+      setError(getAppleAuthorizationErrorMessage(err) || getApiErrorMessage(err, 'Apple Login ist fehlgeschlagen. Bitte lade die Seite neu und versuche es erneut.'))
     } finally {
       setAppleLoading(false)
+      if (!loginCompleted) {
+        prepareAppleLogin().catch(() => {
+          setAppleReady(false)
+          setAppleConfig({ enabled: false, client_id: '', redirect_uri: '', reason: 'Apple-Konfiguration konnte nicht neu geladen werden.' })
+        })
+      }
     }
   }
 
@@ -218,12 +251,12 @@ export default function Login() {
               <button
                 type="button"
                 onClick={handleAppleLogin}
-                disabled={appleLoading}
+                disabled={appleLoading || !appleReady}
                 aria-label="Mit Apple anmelden"
                 aria-busy={appleLoading}
                 className="flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-black text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-70"
               >
-                {appleLoading ? (
+                {appleLoading || !appleReady ? (
                   'Apple Anmeldung...'
                 ) : (
                   <img src={APPLE_SIGN_IN_BUTTON_URL} alt="" className="h-11 w-full object-fill" />
