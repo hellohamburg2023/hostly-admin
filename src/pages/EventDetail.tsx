@@ -156,14 +156,14 @@ export default function EventDetailPage() {
       <ErrorBanner message={errorMessage} />
 
       <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
+        <div className="admin-detail-header flex items-start justify-between gap-4">
+          <div className="min-w-0">
             <div className="mb-2 flex flex-wrap gap-2">
               <Badge className={STATUS_STYLES[event.status] || STATUS_STYLES.draft}>{event.status}</Badge>
               {event.women_only && <Badge className="bg-pink-100 text-pink-700">Women only</Badge>}
               {event.report_count > 0 && <Badge className="bg-red-100 text-red-700">{event.report_count} Meldungen</Badge>}
             </div>
-            <h2 className="text-xl font-bold text-gray-900">{event.title}</h2>
+            <h2 className="break-words text-xl font-bold text-gray-900">{event.title}</h2>
             <p className="mt-1 max-w-3xl text-sm text-gray-600">{event.description}</p>
           </div>
           {event.status !== 'cancelled' && event.status !== 'completed' && (
@@ -305,7 +305,7 @@ export default function EventDetailPage() {
               {event.personal_verifications.length === 0 ? (
                 <p className="p-4 text-sm text-gray-400">Keine persönlichen Verifizierungen aus diesem Event</p>
               ) : event.personal_verifications.map((verification) => (
-                <div key={verification.id} className="flex items-center justify-between gap-4 border-b border-gray-100 px-4 py-3 last:border-0">
+                <div key={verification.id} className="flex flex-col items-start justify-between gap-2 border-b border-gray-100 px-4 py-3 last:border-0 sm:flex-row sm:items-center sm:gap-4">
                   <p className="text-sm text-gray-700">
                     <Link to={`/users/${verification.verifier.id}`} className="font-medium text-violet-700">{verification.verifier.display_name || verification.verifier.email}</Link>
                     {' hat '}

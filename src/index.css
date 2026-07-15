@@ -2,3 +2,38 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 body { margin: 0; font-family: system-ui, sans-serif; background: #f8f9fa; }
+
+/* Shared responsive behavior for all authenticated admin views. */
+.admin-table {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.admin-content {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 639px) {
+  .admin-content > .p-8 {
+    padding: 1rem;
+  }
+
+  .admin-page-header,
+  .admin-detail-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-filters > :where(div, input, select, label) {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .admin-content > .p-8 {
+    padding: 1.5rem;
+  }
+}

@@ -13,7 +13,7 @@ export function ErrorBanner({ message }: { message?: string }) {
 
 export function EmptyState({ children }: { children: ReactNode }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
+    <div className="rounded-xl border border-gray-200 bg-white p-6 text-center text-gray-400 sm:p-12">
       {children}
     </div>
   )
@@ -30,7 +30,7 @@ export function Pagination({
   const next = cursorFromUrl(data?.next)
   if (!previous && !next) return null
   return (
-    <div className="flex items-center justify-end gap-2 mt-4">
+    <div className="mt-4 flex items-center justify-end gap-2">
       <button
         type="button"
         disabled={!previous}

@@ -40,7 +40,7 @@ export default function CategoriesPage() {
 
   return (
     <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
+      <div className="admin-page-header flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-gray-900">Kategorien</h2>
         <button
           onClick={() => setAdding(true)}
@@ -52,11 +52,11 @@ export default function CategoriesPage() {
 
       <ErrorBanner message={errorMessage} />
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="admin-table overflow-x-auto rounded-xl border border-gray-200 bg-white">
         {isLoading ? (
           <div className="p-8 text-center text-gray-400">Laden…</div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[700px] text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</th>

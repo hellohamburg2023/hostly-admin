@@ -185,7 +185,7 @@ export default function IdeasPage() {
 
   return (
     <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
+      <div className="admin-page-header flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Vorlagen & Event-Ideen</h2>
           <p className="text-sm text-gray-500 mt-0.5">
@@ -202,7 +202,7 @@ export default function IdeasPage() {
 
       <ErrorBanner message={errorMessage} />
 
-      <div className="flex flex-wrap gap-3 mb-5">
+      <div className="admin-filters flex flex-wrap gap-3 mb-5">
         <div className="relative flex-1 min-w-64 max-w-sm">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input

@@ -201,8 +201,8 @@ export default function UserDetailPage() {
       <ErrorBanner message={errorMessage} />
 
       <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-4">
+        <div className="admin-detail-header flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-4">
             {user.profile_photo_url ? (
               <img src={user.profile_photo_url} className="h-16 w-16 rounded-xl object-cover" alt="" />
             ) : (
@@ -210,9 +210,9 @@ export default function UserDetailPage() {
                 {(user.profile_display_name || user.username || '?')[0].toUpperCase()}
               </div>
             )}
-            <div>
+            <div className="min-w-0">
               <h2 className="text-xl font-bold text-gray-900">{user.profile_display_name || user.username}</h2>
-              <p className="text-sm text-gray-500">{user.email}</p>
+              <p className="break-all text-sm text-gray-500">{user.email}</p>
               <div className="mt-2 flex flex-wrap gap-1">
                 <Badge className={user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}>{user.is_active ? 'Aktiv' : 'Gesperrt'}</Badge>
                 {user.is_deleted && <Badge className="bg-gray-200 text-gray-700">Gelöscht</Badge>}
@@ -318,13 +318,13 @@ export default function UserDetailPage() {
               {user.push_devices.length === 0 ? (
                 <p className="p-4 text-sm text-gray-400">Keine Push-Devices</p>
               ) : user.push_devices.map((device) => (
-                <div key={device.id} className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 last:border-0">
-                  <div>
+                <div key={device.id} className="flex flex-col items-start justify-between gap-2 border-b border-gray-100 px-4 py-3 last:border-0 sm:flex-row sm:items-center sm:gap-3">
+                  <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-900">{device.platform} · {device.enabled ? 'aktiv' : 'deaktiviert'}</p>
                     <p className="max-w-lg truncate text-xs text-gray-400">Installation {device.device_id || '-'} · Push-Token endet auf {device.token_suffix || '-'}</p>
                     {device.has_live_activity_start_token && <Badge className="mt-1 bg-violet-100 text-violet-700">Live-Activity-Start bereit</Badge>}
                   </div>
-                  <p className="text-xs text-gray-400">{formatDate(device.updated_at, true)}</p>
+                  <p className="shrink-0 text-xs text-gray-400">{formatDate(device.updated_at, true)}</p>
                 </div>
               ))}
             </div>

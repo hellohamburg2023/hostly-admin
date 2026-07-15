@@ -83,14 +83,14 @@ export default function UsersPage() {
 
   return (
     <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
+      <div className="admin-page-header flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-gray-900">Nutzer</h2>
         <span className="text-sm text-gray-500">{users.length} angezeigt</span>
       </div>
 
       <ErrorBanner message={errorMessage} />
 
-      <div className="flex flex-wrap gap-3 mb-5">
+      <div className="admin-filters flex flex-wrap gap-3 mb-5">
         <div className="relative flex-1 min-w-64 max-w-sm">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
@@ -143,11 +143,11 @@ export default function UsersPage() {
         </select>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="admin-table overflow-x-auto rounded-xl border border-gray-200 bg-white">
         {isLoading ? (
           <div className="p-8 text-center text-gray-400">Laden...</div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[820px] text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Nutzer</th>

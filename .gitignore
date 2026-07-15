@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Local Google Cloud service-account keys must never be committed or deployed.
+hostly-50833-*.json

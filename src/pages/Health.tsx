@@ -17,17 +17,28 @@ interface Analytics {
   safe_walks: { total: number; active: number; escalated: number; escalation_rate: number }
 }
 
-function CheckCard({ name, check }: { name: string; check: { ok: boolean; optional?: boolean; detail?: string; backend?: string; sandbox?: boolean } }) {
+const CHECK_LABELS: Record<string, string> = {
+  database: 'Datenbank',
+  redis: 'Redis',
+  apns: 'Apple Push (APNs)',
+  email: 'E-Mail',
+  sentry: 'Sentry',
+  firebase_analytics: 'Firebase Analytics',
+}
+
+function CheckCard({ checkKey, check }: { checkKey: string; check: { ok: boolean; optional?: boolean; detail?: string; backend?: string; sandbox?: boolean } }) {
+  const detail = check.detail || check.backend || (check.sandbox !== undefined ? `Umgebung: ${check.sandbox ? 'Sandbox' : 'Produktion'}` : check.ok ? 'Betriebsbereit' : 'Nicht verfügbar')
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5">
+    <div className={`min-w-0 rounded-xl border bg-white p-5 ${!check.ok && !check.optional ? 'border-red-200' : 'border-gray-200'}`}>
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold text-gray-900">{name}</h3>
-          <p className="mt-1 text-xs text-gray-500">
-            {check.detail || check.backend || (check.sandbox !== undefined ? `Sandbox: ${check.sandbox ? 'Ja' : 'Nein'}` : 'Konfiguration vorhanden')}
-          </p>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-semibold text-gray-900">{CHECK_LABELS[checkKey] ?? checkKey.replaceAll('_', ' ')}</h3>
+            {check.optional && !check.ok && <Badge className="bg-amber-100 text-amber-800">Optional</Badge>}
+          </div>
+          <p className="mt-1 break-words text-xs leading-5 text-gray-500">{detail}</p>
         </div>
-        {check.ok ? <CheckCircle size={18} className="text-green-600" /> : check.optional ? <CircleDashed size={18} className="text-amber-600" /> : <XCircle size={18} className="text-red-600" />}
+        {check.ok ? <CheckCircle size={18} className="shrink-0 text-green-600" /> : check.optional ? <CircleDashed size={18} className="shrink-0 text-amber-600" /> : <XCircle size={18} className="shrink-0 text-red-600" />}
       </div>
     </div>
   )
@@ -43,7 +54,7 @@ export default function HealthPage() {
 
   return (
     <div className="p-8">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="admin-page-header mb-6 flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Betrieb und Infra-Health</h2>
           <p className="text-sm text-gray-500 mt-0.5">Backend-Abhängigkeiten, Worker-Signale und sicherheitsrelevante Metriken</p>
@@ -62,9 +73,9 @@ export default function HealthPage() {
         <div className="text-gray-400">Laden...</div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
+          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
             {Object.entries(health.checks).map(([name, check]) => (
-              <CheckCard key={name} name={name.replaceAll('_', ' ').toUpperCase()} check={check} />
+              <CheckCard key={name} checkKey={name} check={check} />
             ))}
           </div>
 

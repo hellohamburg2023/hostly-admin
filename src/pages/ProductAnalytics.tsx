@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { Activity, CalendarCheck, MousePointerClick, RefreshCw, ShieldCheck, Users } from 'lucide-react'
+import { Activity, CalendarCheck, ExternalLink, MousePointerClick, RefreshCw, ShieldCheck, Users } from 'lucide-react'
 import { getApiErrorMessage, getProductAnalytics } from '../api'
-import { ErrorBanner } from '../adminUi'
+import { Badge, ErrorBanner } from '../adminUi'
 import { formatDate } from '../adminFormat'
 
 interface ProductAnalytics {
@@ -50,7 +50,7 @@ export default function ProductAnalyticsPage() {
 
   return (
     <div className="p-8">
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+      <div className="admin-page-header mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Firebase Produkt-Analytics</h2>
           <p className="mt-0.5 text-sm text-gray-500">Pseudonyme Nutzungssignale der iOS-App über die Google Analytics Data API</p>
@@ -72,20 +72,40 @@ export default function ProductAnalyticsPage() {
       {isLoading ? (
         <div className="text-gray-400">Firebase-Auswertung wird geladen...</div>
       ) : data?.configured === false ? (
-        <div className="max-w-3xl rounded-xl border border-amber-200 bg-amber-50 p-6">
-          <div className="flex items-start gap-3">
+        <div className="max-w-4xl overflow-hidden rounded-xl border border-amber-200 bg-white">
+          <div className="flex items-start gap-3 border-b border-amber-100 bg-amber-50 p-5">
             <Activity size={20} className="mt-0.5 shrink-0 text-amber-700" />
-            <div>
-              <h3 className="font-semibold text-amber-950">Firebase Analytics ist in der App aktiv, der Admin-Lesezugriff ist noch nicht verbunden.</h3>
-              <p className="mt-2 text-sm leading-6 text-amber-900">
-                Aktiviere im Google-Cloud-Projekt die Analytics Data API, gib einem Service Account Leserechte auf die GA4-Property und hinterlege im Backend die folgenden Railway-Variablen:
-              </p>
-              <div className="mt-3 rounded-lg bg-white/70 p-3 font-mono text-xs text-amber-950">
-                {(data.required_settings ?? ['GA4_PROPERTY_ID', 'GA4_SERVICE_ACCOUNT_JSON']).map((setting) => <p key={setting}>{setting}</p>)}
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-semibold text-amber-950">Admin-Auswertung einrichten</h3>
+                <Badge className="bg-amber-100 text-amber-800">Firebase-Projekt hostly-50833</Badge>
               </div>
-              <p className="mt-3 text-xs text-amber-800">Der Service-Account-Schlüssel bleibt ausschließlich im Backend und wird nie an den Browser ausgeliefert.</p>
+              <p className="mt-1 text-sm leading-6 text-amber-900">Die iOS-App sendet bereits freigegebene Analytics-Ereignisse. Für dieses Dashboard fehlt nur der schreibgeschützte Zugriff auf die GA4-Property.</p>
             </div>
           </div>
+          <ol className="grid gap-4 p-5 md:grid-cols-3">
+            <li className="rounded-lg border border-gray-200 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">Schritt 1</p>
+              <h4 className="mt-1 text-sm font-semibold text-gray-900">Data API aktivieren</h4>
+              <p className="mt-1 text-xs leading-5 text-gray-500">Im Google-Cloud-Projekt <span className="font-medium text-gray-700">hostly-50833</span> die Google Analytics Data API einschalten.</p>
+              <a className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-violet-600 hover:text-violet-700" href="https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com?project=hostly-50833" target="_blank" rel="noreferrer">API öffnen <ExternalLink size={12} /></a>
+            </li>
+            <li className="rounded-lg border border-gray-200 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">Schritt 2</p>
+              <h4 className="mt-1 text-sm font-semibold text-gray-900">Lesezugriff vergeben</h4>
+              <p className="mt-1 text-xs leading-5 text-gray-500">Service Account erstellen und seine E-Mail in der GA4-Property mit der Rolle <span className="font-medium text-gray-700">Betrachter</span> hinzufügen.</p>
+              <a className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-violet-600 hover:text-violet-700" href="https://console.cloud.google.com/iam-admin/serviceaccounts?project=hostly-50833" target="_blank" rel="noreferrer">Service Accounts <ExternalLink size={12} /></a>
+            </li>
+            <li className="rounded-lg border border-gray-200 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">Schritt 3</p>
+              <h4 className="mt-1 text-sm font-semibold text-gray-900">Railway verbinden</h4>
+              <p className="mt-1 text-xs leading-5 text-gray-500">Im Backend-Service die numerische Property-ID und den vollständigen JSON-Schlüssel hinterlegen.</p>
+              <div className="mt-3 space-y-1 rounded-md bg-gray-50 p-2 font-mono text-[11px] text-gray-700">
+                {(data.required_settings ?? ['GA4_PROPERTY_ID', 'GA4_SERVICE_ACCOUNT_JSON']).map((setting) => <p key={setting} className="break-all">{setting}</p>)}
+              </div>
+            </li>
+          </ol>
+          <div className="border-t border-gray-100 px-5 py-3 text-xs text-gray-500">Der Service-Account-Schlüssel bleibt ausschließlich im Backend und wird niemals an den Browser ausgeliefert.</div>
         </div>
       ) : data?.configured ? (
         <>
@@ -130,8 +150,8 @@ export default function ProductAnalyticsPage() {
             </div>
           </div>
 
-          <div className="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white">
-            <table className="w-full text-sm">
+          <div className="admin-table mb-6 overflow-x-auto rounded-xl border border-gray-200 bg-white">
+            <table className="w-full min-w-[520px] text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Produkt-Ereignis</th>
@@ -151,7 +171,7 @@ export default function ProductAnalyticsPage() {
             </table>
           </div>
 
-          <div className="flex items-start justify-between gap-4 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900">
+          <div className="flex flex-col items-start justify-between gap-4 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900 sm:flex-row">
             <div className="flex items-start gap-2"><ShieldCheck size={17} className="mt-0.5 shrink-0" /><p>{data.privacy_note}</p></div>
             <p className="shrink-0 text-xs text-green-700">Stand {formatDate(data.refreshed_at, true)}</p>
           </div>

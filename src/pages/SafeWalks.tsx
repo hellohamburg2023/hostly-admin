@@ -78,7 +78,7 @@ export default function SafeWalksPage() {
 
   return (
     <div className="p-8">
-      <div className="mb-6 flex items-start justify-between gap-4">
+      <div className="admin-page-header mb-6 flex items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Safety Operations</h2>
           <p className="mt-0.5 text-sm text-gray-500">Safe Walk und Meeting Safety live überwachen, ohne geschützte Standortdaten vorzeitig offenzulegen</p>
@@ -133,7 +133,7 @@ export default function SafeWalksPage() {
         </div>
       </div>
 
-      <div className="mb-5 flex flex-wrap gap-3">
+      <div className="admin-filters mb-5 flex flex-wrap gap-3">
         <div className="relative min-w-64 flex-1 max-w-sm">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
@@ -166,7 +166,7 @@ export default function SafeWalksPage() {
       ) : walks.length === 0 ? (
         <EmptyState>Keine Safety Sessions in dieser Auswahl</EmptyState>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+        <div className="admin-table overflow-x-auto rounded-xl border border-gray-200 bg-white">
           <table className="w-full min-w-[1050px] text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">

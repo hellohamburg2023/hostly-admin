@@ -142,9 +142,9 @@ export default function ReportDetailPage() {
       <ErrorBanner message={errorMessage} />
 
       <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="mb-2 flex items-center gap-2">
+        <div className="admin-detail-header flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
               <Badge className={STATUS_STYLES[report.status] || STATUS_STYLES.open}>{STATUS_LABELS[report.status] || report.status}</Badge>
               {report.moderation_decision && (
                 <Badge className="bg-blue-100 text-blue-700">
@@ -153,7 +153,7 @@ export default function ReportDetailPage() {
               )}
               <span className="text-xs text-gray-400">{formatDate(report.created_at, true)}</span>
             </div>
-            <h2 className="text-xl font-bold text-gray-900">{report.reason}</h2>
+            <h2 className="break-words text-xl font-bold text-gray-900">{report.reason}</h2>
             {report.details && <p className="mt-2 max-w-3xl whitespace-pre-wrap text-sm text-gray-600">{report.details}</p>}
             {report.moderation_note && (
               <div className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-800">

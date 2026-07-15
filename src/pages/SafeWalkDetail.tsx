@@ -77,8 +77,8 @@ export default function SafeWalkDetailPage() {
       <ErrorBanner message={error ? getApiErrorMessage(error) : ''} />
 
       <div className={`mb-6 rounded-xl border bg-white p-5 ${session.needs_attention ? 'border-amber-300' : 'border-gray-200'}`}>
-        <div className="flex items-start justify-between gap-4">
-          <div>
+        <div className="admin-detail-header flex items-start justify-between gap-4">
+          <div className="min-w-0">
             <div className="mb-2 flex flex-wrap gap-2">
               <Badge className="bg-violet-100 text-violet-700">{SAFETY_KIND_LABELS[session.kind] || session.kind}</Badge>
               <Badge className={SAFETY_STATUS_STYLES[session.status] || 'bg-gray-100 text-gray-600'}>{SAFETY_STATUS_LABELS[session.status] || session.status}</Badge>
@@ -87,7 +87,7 @@ export default function SafeWalkDetailPage() {
             <h2 className="text-xl font-bold text-gray-900">Safety Session #{session.id}</h2>
             <p className="mt-1 text-sm text-gray-500">{session.destination_label || 'Geschütztes Ziel'} · {TRUST_MODE_LABELS[session.trusted_contact_type] || session.trusted_contact_type}</p>
           </div>
-          <div className="text-right text-xs text-gray-400">
+          <div className="text-left text-xs text-gray-400 sm:text-right">
             <p>Version {session.version}</p>
             <p>Update {formatDate(session.updated_at, true)}</p>
           </div>
@@ -105,7 +105,7 @@ export default function SafeWalkDetailPage() {
                 <DetailRow label="Erwartete Ankunft" value={formatDate(session.expected_arrival_at, true)} />
                 <DetailRow label="Grace Period" value={`${session.grace_minutes} Minuten`} />
                 <DetailRow label="Vertrauenskontakt" value={<UserLink user={session.trusted_hostly_user} fallback={TRUST_MODE_LABELS[session.trusted_contact_type] || '-'} />} />
-                <DetailRow label="Public ID" value={<span className="font-mono text-xs">{session.public_id}</span>} />
+                <DetailRow label="Public ID" value={<span className="break-all font-mono text-xs">{session.public_id}</span>} />
                 {session.note && <DetailRow label="Notiz" value={session.note} />}
               </dl>
             </div>
