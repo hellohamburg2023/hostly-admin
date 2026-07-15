@@ -67,8 +67,12 @@ export const login = (email: string, password: string) =>
 export const getAppleLoginConfig = () =>
   api.get('/api/admin/login/apple/config/').then((r) => r.data)
 
-export const loginWithApple = (identityToken: string, fullName?: string) =>
-  api.post('/api/admin/login/apple/', { identity_token: identityToken, full_name: fullName || '' }).then((r) => r.data)
+export const loginWithApple = (identityToken: string, state: string, fullName?: string) =>
+  api.post('/api/admin/login/apple/', {
+    identity_token: identityToken,
+    state,
+    full_name: fullName || '',
+  }).then((r) => r.data)
 
 // Admin
 export const getStats = () => api.get('/api/admin/stats/').then((r) => r.data)

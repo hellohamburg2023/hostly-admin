@@ -11,7 +11,7 @@ export interface AuthCtx {
   user: AuthUser | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
-  signInWithApple: (identityToken: string, fullName?: string) => Promise<void>
+  signInWithApple: (identityToken: string, state: string, fullName?: string) => Promise<void>
   signOut: () => void
 }
 

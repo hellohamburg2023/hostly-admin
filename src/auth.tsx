@@ -51,9 +51,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const signInWithApple = async (identityToken: string, fullName?: string) => {
+  const signInWithApple = async (identityToken: string, state: string, fullName?: string) => {
     try {
-      const data = await apiLoginWithApple(identityToken, fullName)
+      const data = await apiLoginWithApple(identityToken, state, fullName)
       localStorage.setItem('access_token', data.access)
       localStorage.setItem('refresh_token', data.refresh)
       await loadAdminUser()

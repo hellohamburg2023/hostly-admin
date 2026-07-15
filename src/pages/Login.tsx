@@ -9,10 +9,13 @@ interface AppleLoginConfig {
   enabled: boolean
   client_id: string
   redirect_uri: string
+  state?: string
+  nonce?: string
+  reason?: string
 }
 
 interface AppleSignInResponse {
-  authorization?: { id_token?: string }
+  authorization?: { code?: string; id_token?: string; state?: string }
   user?: { name?: { firstName?: string; lastName?: string } }
 }
 
@@ -25,6 +28,7 @@ declare global {
           scope: string
           redirectURI: string
           state: string
+          nonce: string
           usePopup: boolean
         }) => void
         signIn: () => Promise<AppleSignInResponse>
@@ -46,7 +50,7 @@ function loadAppleScript() {
       return
     }
     const script = document.createElement('script')
-    script.src = 'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js'
+    script.src = 'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/de_DE/appleid.auth.js'
     script.async = true
     script.dataset.appleAuth = 'true'
     script.onload = () => resolve()
@@ -54,6 +58,12 @@ function loadAppleScript() {
     document.head.appendChild(script)
   })
   return appleScriptPromise
+}
+
+function isAppleCancellation(error: unknown) {
+  if (!error || typeof error !== 'object') return false
+  const code = 'error' in error ? String(error.error) : ''
+  return code === 'user_cancelled_authorize' || code === 'popup_closed_by_user'
 }
 
 export default function Login() {
@@ -79,7 +89,7 @@ export default function Login() {
         return undefined
       })
       .catch(() => {
-        if (!cancelled) setAppleConfig({ enabled: false, client_id: '', redirect_uri: '' })
+        if (!cancelled) setAppleConfig({ enabled: false, client_id: '', redirect_uri: '', reason: 'Apple-Konfiguration konnte nicht geladen werden.' })
       })
     return () => { cancelled = true }
   }, [])
@@ -99,31 +109,40 @@ export default function Login() {
   }
 
   const handleAppleLogin = async () => {
-    if (!appleConfig?.enabled || !appleConfig.client_id) {
-      setError('Apple Login ist im Backend noch nicht konfiguriert.')
-      return
-    }
     setError('')
     setAppleLoading(true)
     try {
+      const config = await getAppleLoginConfig() as AppleLoginConfig
+      setAppleConfig(config)
+      if (!config.enabled || !config.client_id || !config.state || !config.nonce) {
+        throw new Error(config.reason || 'Apple Login ist im Backend noch nicht vollständig konfiguriert.')
+      }
       await loadAppleScript()
       if (!window.AppleID) throw new Error('Apple Login konnte nicht geladen werden.')
       window.AppleID.auth.init({
-        clientId: appleConfig.client_id,
+        clientId: config.client_id,
         scope: 'name email',
-        redirectURI: appleConfig.redirect_uri || `${window.location.origin}/login`,
-        state: 'hostly-admin',
+        redirectURI: config.redirect_uri,
+        state: config.state,
+        nonce: config.nonce,
         usePopup: true,
       })
       const result = await window.AppleID.auth.signIn()
       const identityToken = result.authorization?.id_token
       if (!identityToken) throw new Error('Apple hat kein Login-Token zurückgegeben.')
+      if (!result.authorization?.state || result.authorization.state !== config.state) {
+        throw new Error('Die Apple-Anmeldung konnte nicht eindeutig dieser Sitzung zugeordnet werden.')
+      }
       const firstName = result.user?.name?.firstName || ''
       const lastName = result.user?.name?.lastName || ''
       const fullName = [firstName, lastName].filter(Boolean).join(' ')
-      await signInWithApple(identityToken, fullName)
+      await signInWithApple(identityToken, result.authorization.state, fullName)
       navigate('/')
     } catch (err: unknown) {
+      if (isAppleCancellation(err)) {
+        setError('')
+        return
+      }
       setError(getApiErrorMessage(err, 'Apple Login fehlgeschlagen. Prüfe, ob dein Apple Account einem Superuser entspricht.'))
     } finally {
       setAppleLoading(false)
@@ -195,7 +214,12 @@ export default function Login() {
                 <Apple size={17} fill="currentColor" strokeWidth={1.7} />
                 {appleLoading ? 'Apple Anmeldung...' : 'Mit Apple anmelden'}
               </button>
+              <p className="text-center text-xs text-gray-400">Auf unterstützten Apple-Geräten bestätigt Apple die Anmeldung mit Face ID oder Touch ID.</p>
             </>
+          )}
+
+          {appleConfig && !appleConfig.enabled && appleConfig.reason && (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">Apple Login ist noch nicht verfügbar: {appleConfig.reason}</p>
           )}
         </div>
       </div>
