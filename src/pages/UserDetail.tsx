@@ -1,6 +1,6 @@
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { deleteProfilePhoto, getApiErrorMessage, getUser, patchProfile, patchUser } from '../api'
+import { deleteProfilePhoto, deleteUser, getApiErrorMessage, getUser, patchProfile, patchUser } from '../api'
 import { activityLabel, formatDate } from '../adminFormat'
 import { Badge, DetailRow, ErrorBanner, Section } from '../adminUi'
 import { ArrowLeft, BellRing, ShieldCheck, ShieldOff, Tag, Trash2, UserCheck, UserX } from 'lucide-react'
@@ -60,6 +60,7 @@ interface UserDetail {
   profile_display_name: string
   profile_city: string
   profile_verification_status: string
+  profile_hostly_verified: boolean
   profile_photo_url: string
   hosted_event_count: number
   participation_count: number
@@ -76,6 +77,7 @@ interface UserDetail {
     women_only_eligible: boolean
     queer_friendly: boolean
     verification_status: string
+    hostly_verified: boolean
     verification_note: string
     verification_reviewed_at: string | null
     reviewed_by_email: string
@@ -162,6 +164,7 @@ function ReportList({ reports }: { reports: Report[] }) {
 
 export default function UserDetailPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const qc = useQueryClient()
   const { data: user, isLoading, error } = useQuery<UserDetail>({
     queryKey: ['user', id],
@@ -185,6 +188,16 @@ export default function UserDetailPage() {
     mutationFn: (profileId: number) => deleteProfilePhoto(profileId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['user', id] }),
   })
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteUser(Number(id)),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] })
+      qc.invalidateQueries({ queryKey: ['events'] })
+      qc.invalidateQueries({ queryKey: ['stats'] })
+      qc.invalidateQueries({ queryKey: ['analytics'] })
+      navigate('/users', { replace: true })
+    },
+  })
 
   const errorMessage = error
     ? getApiErrorMessage(error)
@@ -194,7 +207,9 @@ export default function UserDetailPage() {
         ? getApiErrorMessage(profileMutation.error)
         : photoMutation.error
           ? getApiErrorMessage(photoMutation.error)
-          : ''
+          : deleteMutation.error
+            ? getApiErrorMessage(deleteMutation.error)
+            : ''
 
   if (isLoading) return <div className="p-8 text-gray-400">Laden...</div>
   if (!user) return <div className="p-8 text-gray-400">Nutzer nicht gefunden</div>
@@ -228,7 +243,9 @@ export default function UserDetailPage() {
                 {user.is_test_user && (
                   <Badge className="bg-violet-100 text-violet-700">Testuser</Badge>
                 )}
-                <Badge className={STATUS_STYLES[user.profile_verification_status] || STATUS_STYLES.unverified}>{user.profile_verification_status || 'unverified'}</Badge>
+                <Badge className={STATUS_STYLES[user.profile_verification_status] || STATUS_STYLES.unverified}>
+                  {user.profile_hostly_verified ? 'Hostly-verifiziert' : (user.profile_verification_status || 'unverified')}
+                </Badge>
                 {user.is_superuser && <Badge className="bg-violet-100 text-violet-700">Superuser</Badge>}
               </div>
             </div>
@@ -265,6 +282,20 @@ export default function UserDetailPage() {
                 {user.is_active ? 'Nutzer sperren' : 'Nutzer entsperren'}
               </button>
             )}
+            {!user.is_superuser && (
+              <button
+                type="button"
+                onClick={() => {
+                  const name = user.profile_display_name || user.username || user.email
+                  const confirmation = prompt(`Nutzer „${name}“ endgültig löschen? Konto, Events, Dateien und zugehörige Daten werden entfernt.\n\nTippe LÖSCHEN zur Bestätigung.`)
+                  if (confirmation === 'LÖSCHEN') deleteMutation.mutate()
+                }}
+                disabled={deleteMutation.isPending}
+                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                <Trash2 size={15} /> Endgültig löschen
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -290,15 +321,15 @@ export default function UserDetailPage() {
             <div className="rounded-xl border border-gray-200 bg-white p-5">
               {user.profile && (
                 <div className="mb-4 flex flex-wrap gap-2">
-                  {user.profile.verification_status !== 'verified' && (
+                  {!user.profile.hostly_verified && (
                     <button
                       onClick={() => profileMutation.mutate({ profileId: user.profile!.id, status: 'verified' })}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-green-50 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-100"
                     >
-                      <ShieldCheck size={14} /> Verifizieren
+                      <ShieldCheck size={14} /> Durch Hostly verifizieren
                     </button>
                   )}
-                  {user.profile.verification_status === 'verified' && (
+                  {user.profile.hostly_verified && (
                     <button
                       onClick={() => profileMutation.mutate({ profileId: user.profile!.id, status: 'unverified' })}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100"

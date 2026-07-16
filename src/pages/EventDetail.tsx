@@ -1,6 +1,6 @@
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { deleteEventPhoto, getApiErrorMessage, getEvent, patchEvent } from '../api'
+import { deleteEvent, deleteEventPhoto, getApiErrorMessage, getEvent, patchEvent } from '../api'
 import { formatDate } from '../adminFormat'
 import { Badge, DetailRow, ErrorBanner, Section } from '../adminUi'
 import { SAFETY_STATUS_LABELS, SAFETY_STATUS_STYLES } from '../safeWalk'
@@ -118,6 +118,7 @@ function UserLine({ user }: { user: CompactUser | null }) {
 
 export default function EventDetailPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const qc = useQueryClient()
   const { data: event, isLoading, error } = useQuery<EventDetail>({
     queryKey: ['event', id],
@@ -132,6 +133,15 @@ export default function EventDetailPage() {
     mutationFn: (photoId: number) => deleteEventPhoto(Number(id), photoId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['event', id] }),
   })
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteEvent(Number(id)),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['events'] })
+      qc.invalidateQueries({ queryKey: ['stats'] })
+      qc.invalidateQueries({ queryKey: ['analytics'] })
+      navigate('/events', { replace: true })
+    },
+  })
 
   const errorMessage = error
     ? getApiErrorMessage(error)
@@ -139,7 +149,9 @@ export default function EventDetailPage() {
       ? getApiErrorMessage(mutation.error)
       : photoMutation.error
         ? getApiErrorMessage(photoMutation.error)
-        : ''
+        : deleteMutation.error
+          ? getApiErrorMessage(deleteMutation.error)
+          : ''
 
   if (isLoading) return <div className="p-8 text-gray-400">Laden...</div>
   if (!event) return <div className="p-8 text-gray-400">Event nicht gefunden</div>
@@ -166,14 +178,27 @@ export default function EventDetailPage() {
             <h2 className="break-words text-xl font-bold text-gray-900">{event.title}</h2>
             <p className="mt-1 max-w-3xl text-sm text-gray-600">{event.description}</p>
           </div>
-          {event.status !== 'cancelled' && event.status !== 'completed' && (
+          <div className="flex flex-wrap justify-end gap-2">
+            {event.status !== 'cancelled' && event.status !== 'completed' && (
+              <button
+                onClick={() => mutation.mutate('cancelled')}
+                className="inline-flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
+              >
+                <Ban size={15} /> Event absagen
+              </button>
+            )}
             <button
-              onClick={() => mutation.mutate('cancelled')}
-              className="inline-flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
+              type="button"
+              onClick={() => {
+                const confirmation = prompt(`Event „${event.title}“ endgültig löschen? Alle zugehörigen Daten werden entfernt.\n\nTippe LÖSCHEN zur Bestätigung.`)
+                if (confirmation === 'LÖSCHEN') deleteMutation.mutate()
+              }}
+              disabled={deleteMutation.isPending}
+              className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
             >
-              <Ban size={15} /> Event absagen
+              <Trash2 size={15} /> Endgültig löschen
             </button>
-          )}
+          </div>
         </div>
       </div>
 

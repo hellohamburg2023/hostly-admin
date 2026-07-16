@@ -97,6 +97,9 @@ export const getUser = (id: number | string) =>
 export const patchUser = (id: number, data: Record<string, unknown>) =>
   api.patch(`/api/admin/users/${id}/`, data).then((r) => r.data)
 
+export const deleteUser = (id: number) =>
+  api.delete(`/api/admin/users/${id}/`).then((r) => r.data)
+
 export const getProfiles = (params?: Record<string, string>) =>
   api.get('/api/admin/profiles/', { params }).then((r) => r.data)
 
@@ -114,6 +117,9 @@ export const getEvent = (id: number | string) =>
 
 export const patchEvent = (id: number, data: Record<string, unknown>) =>
   api.patch(`/api/admin/events/${id}/`, data).then((r) => r.data)
+
+export const deleteEvent = (id: number) =>
+  api.delete(`/api/admin/events/${id}/`).then((r) => r.data)
 
 export const deleteEventPhoto = (eventId: number, photoId: number) =>
   api.delete(`/api/admin/events/${eventId}/photos/${photoId}/`).then((r) => r.data)
