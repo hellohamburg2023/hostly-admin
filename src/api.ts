@@ -4,7 +4,10 @@ const configuredBaseUrl = import.meta.env.VITE_API_URL?.trim()
 const defaultBaseUrl = import.meta.env.PROD
   ? 'https://app.meet-hostly.com'
   : 'http://localhost:8000'
-const BASE_URL = (configuredBaseUrl || defaultBaseUrl).replace(/\/+$/, '')
+const useSameOriginApi = import.meta.env.PROD
+  && typeof window !== 'undefined'
+  && !['localhost', '127.0.0.1'].includes(window.location.hostname)
+const BASE_URL = (useSameOriginApi ? '' : configuredBaseUrl || defaultBaseUrl).replace(/\/+$/, '')
 
 export const api = axios.create({ baseURL: BASE_URL })
 
@@ -143,8 +146,8 @@ export interface AdminPushNotificationPayload {
   category_id?: number
   title_de: string
   body_de: string
-  title_en: string
-  body_en: string
+  title_en?: string
+  body_en?: string
 }
 
 export interface AdminPushNotificationResult {
@@ -152,6 +155,23 @@ export interface AdminPushNotificationResult {
   device_count: number
   language_counts: { de: number; en: number }
   sent_device_count?: number
+  rejected_device_count?: number
+  devices: AdminPushNotificationDeviceResult[]
+}
+
+export interface AdminPushNotificationDeviceResult {
+  id: number
+  user_id: number
+  user_email: string
+  user_display_name: string
+  platform: string
+  provider: 'apns' | 'expo'
+  preferred_language: 'de' | 'en'
+  token_suffix: string
+  updated_at: string
+  delivery_status: 'ready' | 'accepted' | 'rejected'
+  provider_status: number | null
+  rejection_reason: string
 }
 
 export const previewPushNotification = (data: AdminPushNotificationPayload) =>

@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
-import { getAnalytics, getApiErrorMessage, getStats } from '../api'
+import { Link } from 'react-router-dom'
+import { getAnalytics, getApiErrorMessage, getProductAnalytics, getStats } from '../api'
 import { ErrorBanner } from '../adminUi'
 import {
   Area, AreaChart, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts'
-import { Users, CalendarDays, AlertTriangle, TrendingUp, Activity, Footprints } from 'lucide-react'
+import { Users, CalendarDays, AlertTriangle, TrendingUp, Activity, Footprints, Wifi } from 'lucide-react'
 
 interface Stats {
   users: {
@@ -18,6 +19,8 @@ interface Stats {
     active_30d: number
     inactive_over_30d: number
     never_active: number
+    online_now: number
+    online_window_minutes: number
     deleted: number
   }
   events: { total: number; by_status: Record<string, number> }
@@ -36,6 +39,15 @@ interface Analytics {
   reports_by_user: { reported_user_id: number; reported_user__email: string; count: number }[]
   verification: { total: number; verified: number; pending: number; rate: number }
   safe_walks: { total: number; active: number; escalated: number; needs_attention: number; safe_walk: number; meeting_safety: number; escalation_rate: number }
+}
+
+interface ProductActivityAnalytics {
+  configured: boolean
+  activity_patterns?: {
+    period_days: number
+    by_hour: { hour: number; label: string; average_active_users: number }[]
+    by_weekday: { weekday: number; label: string; average_active_users: number }[]
+  }
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -132,12 +144,25 @@ function hasValues(data: { count: number }[]) {
 }
 
 export default function Dashboard() {
-  const { data, isLoading, error: statsError } = useQuery<Stats>({ queryKey: ['stats'], queryFn: getStats })
+  const { data, isLoading, error: statsError } = useQuery<Stats>({
+    queryKey: ['stats'],
+    queryFn: getStats,
+    refetchInterval: 30_000,
+  })
   const {
     data: analytics,
     isLoading: isAnalyticsLoading,
     error: analyticsError,
   } = useQuery<Analytics>({ queryKey: ['analytics'], queryFn: getAnalytics })
+  const {
+    data: productActivity,
+    isLoading: isProductActivityLoading,
+    error: productActivityError,
+  } = useQuery<ProductActivityAnalytics>({
+    queryKey: ['product-analytics', 90],
+    queryFn: () => getProductAnalytics(90),
+    staleTime: 10 * 60_000,
+  })
 
   if (isLoading) return <div className="p-8 text-gray-400">Lade Statistiken...</div>
   if (statsError || !data) {
@@ -170,6 +195,25 @@ export default function Dashboard() {
     .slice(0, 8) ?? []
   const liveSafetySessions = ['ready', 'active', 'arrival_due', 'grace_period', 'escalated']
     .reduce((sum, status) => sum + (data.safe_walks[status] ?? 0), 0)
+  const activityByHour = productActivity?.activity_patterns?.by_hour.map((row) => ({
+    ...row,
+    count: Number(row.average_active_users) || 0,
+  })) ?? []
+  const activityByWeekday = productActivity?.activity_patterns?.by_weekday.map((row) => ({
+    ...row,
+    count: Number(row.average_active_users) || 0,
+  })) ?? []
+  const busiestWeekday = Math.max(0, ...activityByWeekday.map((row) => row.count))
+  const activityPatternState = productActivityError
+    ? 'Firebase-Aktivitätsdaten konnten nicht geladen werden.'
+    : productActivity?.configured === false
+      ? (
+          <span>
+            Firebase/GA4 ist noch nicht verbunden.{' '}
+            <Link to="/product-analytics" className="font-medium text-violet-600 hover:text-violet-700">Jetzt einrichten</Link>
+          </span>
+        )
+      : 'Für diesen Zeitraum liegen noch keine Firebase-Aktivitätsdaten vor.'
   const analyticsStateMessage = analyticsError
     ? 'Analytics-Daten konnten nicht geladen werden.'
     : 'Für diesen Zeitraum liegen noch keine Daten vor.'
@@ -180,13 +224,60 @@ export default function Dashboard() {
 
       <ErrorBanner message={analyticsError ? getApiErrorMessage(analyticsError) : ''} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
+      <div className="grid grid-cols-2 gap-4 mb-8 lg:grid-cols-4 xl:grid-cols-7">
         <KPI icon={Users} label="Nutzer gesamt" value={data.users.total} sub={`${data.users.active} aktiv · ${data.users.deleted} gelöscht`} color="violet" />
+        <KPI icon={Wifi} label="Online jetzt" value={data.users.online_now ?? 0} sub={`Aktivität in den letzten ${data.users.online_window_minutes ?? 5} Min.`} color="green" />
         <KPI icon={Activity} label="Aktiv 7 Tage" value={data.users.active_7d} sub={`${data.users.active_30d} in 30 Tagen`} color="green" />
         <KPI icon={TrendingUp} label="Neu diese Woche" value={data.users.new_this_week} sub={`${data.users.new_this_month} diesen Monat`} color="blue" />
         <KPI icon={CalendarDays} label="Events gesamt" value={data.events.total} color="green" />
         <KPI icon={AlertTriangle} label="Offene Meldungen" value={data.reports.open} sub={`${data.reports.reviewing} in Prüfung`} color="red" />
         <KPI icon={Footprints} label="Safety Sessions live" value={liveSafetySessions} sub={`${analytics?.safe_walks.needs_attention ?? data.safe_walks.escalated ?? 0} mit Handlungsbedarf`} color="amber" />
+      </div>
+
+      <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <ChartCard title="Online nach Uhrzeit" description="Ø aktive Nutzer je Stunde · Firebase/GA4 mit Analytics-Einwilligung" meta="90 Tage">
+          {isProductActivityLoading ? (
+            <ChartState>Firebase-Aktivität wird geladen…</ChartState>
+          ) : hasValues(activityByHour) ? (
+            <div className="h-60 w-full" role="img" aria-label="Balkendiagramm der durchschnittlich aktiven Nutzer nach Uhrzeit">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={activityByHour} margin={{ top: 2, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke={GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: AXIS_COLOR, fontSize: 11 }} tickMargin={10} interval={2} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: AXIS_COLOR, fontSize: 11 }} width={36} />
+                  <Tooltip separator=": " contentStyle={TOOLTIP_STYLE} cursor={{ fill: '#f8fafc' }} labelStyle={{ color: '#64748b', marginBottom: 4 }} />
+                  <Bar name="Ø aktive Nutzer" dataKey="count" fill="#7c3aed" radius={[5, 5, 0, 0]} maxBarSize={22} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <ChartState>{activityPatternState}</ChartState>
+          )}
+        </ChartCard>
+
+        <ChartCard title="Online nach Wochentag" description="Ø täglich aktive Nutzer · Firebase/GA4 mit Analytics-Einwilligung" meta="90 Tage">
+          {isProductActivityLoading ? (
+            <ChartState>Firebase-Aktivität wird geladen…</ChartState>
+          ) : hasValues(activityByWeekday) ? (
+            <div className="h-60 w-full" role="img" aria-label="Balkendiagramm der durchschnittlich aktiven Nutzer nach Wochentag">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={activityByWeekday} margin={{ top: 2, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke={GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: AXIS_COLOR, fontSize: 11 }} tickMargin={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: AXIS_COLOR, fontSize: 11 }} width={36} />
+                  <Tooltip separator=": " contentStyle={TOOLTIP_STYLE} cursor={{ fill: '#f8fafc' }} labelStyle={{ color: '#64748b', marginBottom: 4 }} />
+                  <Bar name="Ø aktive Nutzer" dataKey="count" radius={[5, 5, 0, 0]} maxBarSize={42}>
+                    {activityByWeekday.map((entry) => (
+                      <Cell key={entry.weekday} fill={entry.count === busiestWeekday ? '#7c3aed' : '#c4b5fd'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <ChartState>{activityPatternState}</ChartState>
+          )}
+        </ChartCard>
       </div>
 
       <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-3">

@@ -10,6 +10,7 @@ import {
   pageResults,
   previewPushNotification,
   sendPushNotification,
+  type AdminPushNotificationDeviceResult,
   type AdminPushNotificationPayload,
   type AdminPushNotificationResult,
 } from '../api'
@@ -83,9 +84,26 @@ export default function PushNotificationsPage() {
   })
   const categories = pageResults<Category>(categoryData)
 
+  const previewMutation = useMutation({
+    mutationFn: previewPushNotification,
+    onSuccess: (result) => {
+      setPreview(result)
+      setSentResult(null)
+    },
+  })
+  const sendMutation = useMutation({
+    mutationFn: sendPushNotification,
+    onSuccess: (result) => {
+      setSentResult(result)
+      setPreview(null)
+    },
+  })
+
   const resetOutcome = () => {
     setPreview(null)
     setSentResult(null)
+    previewMutation.reset()
+    sendMutation.reset()
   }
 
   const changeTarget = (value: TargetType) => {
@@ -124,22 +142,11 @@ export default function PushNotificationsPage() {
       : targetType === 'category'
         ? Boolean(categoryId)
         : true
-  const copyComplete = Object.values(copy).every((value) => value.trim().length > 0)
-
-  const previewMutation = useMutation({
-    mutationFn: previewPushNotification,
-    onSuccess: (result) => {
-      setPreview(result)
-      setSentResult(null)
-    },
-  })
-  const sendMutation = useMutation({
-    mutationFn: sendPushNotification,
-    onSuccess: (result) => {
-      setSentResult(result)
-      setPreview(null)
-    },
-  })
+  const germanCopyComplete = Boolean(copy.title_de.trim() && copy.body_de.trim())
+  const englishTitlePresent = Boolean(copy.title_en.trim())
+  const englishBodyPresent = Boolean(copy.body_en.trim())
+  const englishCopyComplete = englishTitlePresent === englishBodyPresent
+  const copyComplete = germanCopyComplete && englishCopyComplete
 
   const sendNow = () => {
     if (!preview) return
@@ -153,25 +160,41 @@ export default function PushNotificationsPage() {
     ? getApiErrorMessage(previewMutation.error)
     : sendMutation.error
       ? getApiErrorMessage(sendMutation.error)
-      : categoryError
+      : targetType === 'category' && categoryError
         ? getApiErrorMessage(categoryError)
         : ''
+  const rejectedDeviceCount = sentResult
+    ? sentResult.rejected_device_count
+      ?? sentResult.devices.filter((device) => device.delivery_status === 'rejected').length
+    : 0
 
   return (
     <div className="p-8">
       <div className="admin-page-header mb-6 flex items-start justify-between gap-4">
         <div>
           <h2 className="flex items-center gap-2 text-xl font-bold text-gray-900"><BellRing size={21} /> Push-Nachrichten</h2>
-          <p className="mt-1 text-sm text-gray-500">Gezielt versenden – jedes Gerät erhält automatisch die deutsche oder englische Fassung.</p>
+          <p className="mt-1 text-sm text-gray-500">Deutsch ist erforderlich. Ohne englische Fassung erhalten auch englischsprachige Geräte die deutsche Nachricht.</p>
         </div>
       </div>
 
       <ErrorBanner message={errorMessage} />
       {sentResult && (
-        <div className="mb-5 flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+        <div className={`mb-5 flex items-start gap-2 rounded-lg border px-4 py-3 text-sm ${rejectedDeviceCount > 0 ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-green-200 bg-green-50 text-green-800'}`}>
           <Check className="mt-0.5 shrink-0" size={16} />
-          <span>Versand abgeschlossen: {sentResult.sent_device_count ?? 0} von {sentResult.device_count} Geräten haben die Nachricht beim Push-Dienst angenommen.</span>
+          <span>Versand abgeschlossen: {sentResult.sent_device_count ?? 0} angenommen, {rejectedDeviceCount} abgewiesen – insgesamt {sentResult.device_count} Geräte.</span>
         </div>
+      )}
+      {sentResult && (
+        <section className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-800">Ergebnis je Gerät</h3>
+              <p className="mt-1 text-xs text-gray-500">„Angenommen“ bestätigt die Annahme durch APNs/Expo, nicht die Anzeige oder das Öffnen auf dem Gerät.</p>
+            </div>
+            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">{sentResult.device_count} Geräte</span>
+          </div>
+          <DeviceList devices={sentResult.devices} />
+        </section>
       )}
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
@@ -257,23 +280,27 @@ export default function PushNotificationsPage() {
           </section>
 
           <section className="rounded-xl border border-gray-200 bg-white p-5">
-            <h3 className="mb-4 text-sm font-semibold text-gray-800">2. Nachricht in beiden Sprachen</h3>
+            <h3 className="mb-4 text-sm font-semibold text-gray-800">2. Nachricht verfassen</h3>
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               <LanguageCopy
-                language="Deutsch"
+                language="Deutsch (erforderlich)"
                 title={copy.title_de}
                 body={copy.body_de}
                 onTitle={(value) => updateCopy('title_de', value)}
                 onBody={(value) => updateCopy('body_de', value)}
               />
               <LanguageCopy
-                language="English"
+                language="English (optional)"
                 title={copy.title_en}
                 body={copy.body_en}
                 onTitle={(value) => updateCopy('title_en', value)}
                 onBody={(value) => updateCopy('body_en', value)}
               />
             </div>
+            {!englishCopyComplete && (
+              <p className="mt-3 text-xs font-medium text-amber-700">Für eine englische Fassung bitte Titel und Text ausfüllen – oder beide Felder leer lassen.</p>
+            )}
+            <p className="mt-3 text-xs text-gray-500">Bleibt English leer, wird die deutsche Fassung an alle Geräte gesendet.</p>
             <p className="mt-4 text-xs text-gray-400">Die globale Push-Einstellung der Nutzer wird respektiert. Es wird kein E-Mail-Ersatz versendet.</p>
           </section>
         </div>
@@ -299,6 +326,15 @@ export default function PushNotificationsPage() {
                   <div className="flex justify-between gap-3"><dt className="text-gray-600">Deutsch</dt><dd className="font-semibold text-gray-900">{preview.language_counts.de} Geräte</dd></div>
                   <div className="flex justify-between gap-3"><dt className="text-gray-600">English</dt><dd className="font-semibold text-gray-900">{preview.language_counts.en} Geräte</dd></div>
                 </dl>
+                {!englishTitlePresent && preview.language_counts.en > 0 && (
+                  <p className="mt-3 text-xs text-violet-700">Diese englischsprachigen Geräte erhalten die deutsche Fassung.</p>
+                )}
+                {preview.devices.length > 0 && (
+                  <details className="mt-4 border-t border-violet-200 pt-3">
+                    <summary className="cursor-pointer text-xs font-semibold text-violet-800">Geräte anzeigen ({preview.devices.length})</summary>
+                    <DeviceList devices={preview.devices} compact />
+                  </details>
+                )}
                 {preview.device_count === 0 ? (
                   <p className="mt-4 text-xs font-medium text-amber-700">Für diese Auswahl ist aktuell kein Push-Gerät erreichbar.</p>
                 ) : (
@@ -318,6 +354,49 @@ export default function PushNotificationsPage() {
       </div>
     </div>
   )
+}
+
+function DeviceList({
+  devices,
+  compact = false,
+}: {
+  devices: AdminPushNotificationDeviceResult[]
+  compact?: boolean
+}) {
+  return (
+    <div className={`mt-4 space-y-2 overflow-y-auto ${compact ? 'max-h-72' : 'max-h-[32rem]'}`}>
+      {devices.map((device) => (
+        <div key={device.id} className="rounded-lg border border-gray-200 bg-white p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-gray-900">{device.user_display_name || device.user_email}</p>
+              <p className="truncate text-xs text-gray-500">{device.user_email}</p>
+            </div>
+            <DeliveryBadge status={device.delivery_status} />
+          </div>
+          <p className="mt-2 text-xs text-gray-500">
+            Gerät #{device.id} · {device.platform.toUpperCase()} · {device.provider.toUpperCase()} · {device.preferred_language === 'en' ? 'English' : 'Deutsch'} · Token …{device.token_suffix}
+          </p>
+          {device.provider_status && (
+            <p className="mt-1 text-xs text-gray-400">Push-Dienst Status {device.provider_status}</p>
+          )}
+          {device.rejection_reason && (
+            <p className="mt-1 text-xs font-medium text-red-700">{device.rejection_reason}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function DeliveryBadge({ status }: { status: AdminPushNotificationDeviceResult['delivery_status'] }) {
+  const styles = status === 'accepted'
+    ? 'bg-green-100 text-green-800'
+    : status === 'rejected'
+      ? 'bg-red-100 text-red-800'
+      : 'bg-violet-100 text-violet-800'
+  const label = status === 'accepted' ? 'Angenommen' : status === 'rejected' ? 'Abgewiesen' : 'Bereit'
+  return <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${styles}`}>{label}</span>
 }
 
 function LanguageCopy({
