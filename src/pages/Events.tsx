@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getApiErrorMessage, getEvents, pageResults, patchEvent } from '../api'
+import { deleteEvent, getApiErrorMessage, getEvents, pageResults, patchEvent } from '../api'
 import { formatDate } from '../adminFormat'
 import { Badge, ErrorBanner, Pagination } from '../adminUi'
-import { Calendar, Eye, MapPin, Search, Users } from 'lucide-react'
+import { Calendar, Eye, MapPin, Search, Trash2, Users } from 'lucide-react'
 
 interface Event {
   id: number
@@ -78,6 +78,14 @@ export default function EventsPage() {
     mutationFn: ({ id, status }: { id: number; status: string }) => patchEvent(id, { status }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['events'] }),
   })
+  const deleteMutation = useMutation({
+    mutationFn: deleteEvent,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['events'] })
+      qc.invalidateQueries({ queryKey: ['stats'] })
+      qc.invalidateQueries({ queryKey: ['analytics'] })
+    },
+  })
 
   const setFilter = (setter: (value: string) => void, value: string) => {
     setter(value)
@@ -87,7 +95,9 @@ export default function EventsPage() {
     ? getApiErrorMessage(error)
     : mutation.error
       ? getApiErrorMessage(mutation.error)
-      : ''
+      : deleteMutation.error
+        ? getApiErrorMessage(deleteMutation.error)
+        : ''
 
   return (
     <div className="p-8">
@@ -201,6 +211,18 @@ export default function EventsPage() {
                           Absagen
                         </button>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const confirmation = prompt(`Event „${event.title}“ endgültig löschen? Alle zugehörigen Daten werden entfernt.\n\nTippe LÖSCHEN zur Bestätigung.`)
+                          if (confirmation === 'LÖSCHEN') deleteMutation.mutate(event.id)
+                        }}
+                        disabled={deleteMutation.isPending}
+                        title="Event endgültig löschen"
+                        className="rounded-lg p-1.5 text-red-500 transition-colors hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   </td>
                 </tr>

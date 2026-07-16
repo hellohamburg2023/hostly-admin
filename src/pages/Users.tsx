@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getApiErrorMessage, getUsers, pageResults, patchUser } from '../api'
+import { deleteUser, getApiErrorMessage, getUsers, pageResults, patchUser } from '../api'
 import { activityLabel, formatDate } from '../adminFormat'
 import { Badge, ErrorBanner, Pagination } from '../adminUi'
-import { Eye, Search, Tag, UserCheck, UserX } from 'lucide-react'
+import { Eye, Search, Tag, Trash2, UserCheck, UserX } from 'lucide-react'
 
 interface User {
   id: number
@@ -22,6 +22,7 @@ interface User {
   profile_display_name: string
   profile_city: string
   profile_verification_status: string
+  profile_hostly_verified: boolean
   profile_photo_url: string
   hosted_event_count: number
   participation_count: number
@@ -78,6 +79,15 @@ export default function UsersPage() {
       qc.invalidateQueries({ queryKey: ['analytics'] })
     },
   })
+  const deleteMutation = useMutation({
+    mutationFn: deleteUser,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] })
+      qc.invalidateQueries({ queryKey: ['events'] })
+      qc.invalidateQueries({ queryKey: ['stats'] })
+      qc.invalidateQueries({ queryKey: ['analytics'] })
+    },
+  })
 
   const setFilter = (setter: (value: string) => void, value: string) => {
     setter(value)
@@ -87,7 +97,9 @@ export default function UsersPage() {
     ? getApiErrorMessage(error)
     : mutation.error
       ? getApiErrorMessage(mutation.error)
-      : ''
+      : deleteMutation.error
+        ? getApiErrorMessage(deleteMutation.error)
+        : ''
 
   return (
     <div className="p-8">
@@ -213,7 +225,7 @@ export default function UsersPage() {
                       {u.is_test_user && <Badge className="bg-violet-100 text-violet-700">Testuser</Badge>}
                       {u.profile_verification_status && (
                         <Badge className={BADGE[u.profile_verification_status] || BADGE.unverified}>
-                          {u.profile_verification_status}
+                          {u.profile_hostly_verified ? 'Hostly-verifiziert' : u.profile_verification_status}
                         </Badge>
                       )}
                       {u.is_superuser && <Badge className="bg-violet-100 text-violet-700">Superuser</Badge>}
@@ -246,6 +258,21 @@ export default function UsersPage() {
                           className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition-colors"
                         >
                           {u.is_active ? <UserX size={14} /> : <UserCheck size={14} />}
+                        </button>
+                      )}
+                      {!u.is_superuser && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const name = u.profile_display_name || u.username || u.email
+                            const confirmation = prompt(`Nutzer „${name}“ endgültig löschen? Konto, Events, Dateien und zugehörige Daten werden entfernt.\n\nTippe LÖSCHEN zur Bestätigung.`)
+                            if (confirmation === 'LÖSCHEN') deleteMutation.mutate(u.id)
+                          }}
+                          disabled={deleteMutation.isPending}
+                          title="Nutzer endgültig löschen"
+                          className="rounded-lg p-1.5 text-red-500 transition-colors hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+                        >
+                          <Trash2 size={14} />
                         </button>
                       )}
                     </div>

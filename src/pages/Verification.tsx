@@ -17,6 +17,7 @@ interface Profile {
   birth_date: string | null
   gender: string
   verification_status: string
+  hostly_verified: boolean
   verification_note: string
   verification_reviewed_at: string | null
   reviewed_by_email: string
@@ -165,7 +166,7 @@ export default function VerificationPage() {
                   <p className="text-xs text-gray-400 truncate">{profile.email}</p>
                   <p className="text-xs text-gray-500">{profile.city || 'Keine Stadt'} · {profile.gender}</p>
                   <Badge className={STATUS_STYLES[profile.verification_status] || STATUS_STYLES.unverified}>
-                    {STATUS_LABELS[profile.verification_status] || profile.verification_status}
+                    {profile.hostly_verified ? 'Durch Hostly verifiziert' : (STATUS_LABELS[profile.verification_status] || profile.verification_status)}
                   </Badge>
                 </div>
               </div>
@@ -195,7 +196,7 @@ export default function VerificationPage() {
                   onClick={() => mutation.mutate({ id: profile.id, status: 'verified', note: noteFor(profile) })}
                   className="flex-1 flex items-center justify-center gap-1.5 bg-green-50 hover:bg-green-100 text-green-700 text-sm font-medium py-2 rounded-lg transition-colors"
                 >
-                  <CheckCircle size={14} /> Verifizieren
+                  <CheckCircle size={14} /> Durch Hostly verifizieren
                 </button>
                 <button
                   onClick={() => mutation.mutate({ id: profile.id, status: 'rejected', note: noteFor(profile) || 'Profil konnte nicht verifiziert werden.' })}
