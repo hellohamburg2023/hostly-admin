@@ -89,6 +89,9 @@ interface Health {
     configured: boolean
     ok: boolean | null
     detail: string
+    live?: boolean
+    stale?: boolean
+    fetched_at?: string | null
     provider?: string
     project?: string
     environment?: string
@@ -232,15 +235,15 @@ function shortId(value?: string | null) {
 
 function StatusBadge({ ok, optional, label }: { ok: boolean | null; optional?: boolean; label?: string }) {
   if (ok === null) {
-    return <Badge className="bg-gray-100 text-gray-600">{label ?? 'Nicht bestätigt'}</Badge>
+    return <Badge className="shrink-0 whitespace-nowrap bg-gray-100 text-gray-600">{label ?? 'Nicht bestätigt'}</Badge>
   }
   if (ok) {
-    return <Badge className="bg-green-100 text-green-700">{label ?? 'Online'}</Badge>
+    return <Badge className="shrink-0 whitespace-nowrap bg-green-100 text-green-700">{label ?? 'Online'}</Badge>
   }
   if (optional) {
-    return <Badge className="bg-amber-100 text-amber-800">{label ?? 'Optional'}</Badge>
+    return <Badge className="shrink-0 whitespace-nowrap bg-amber-100 text-amber-800">{label ?? 'Optional'}</Badge>
   }
-  return <Badge className="bg-red-100 text-red-700">{label ?? 'Prüfen'}</Badge>
+  return <Badge className="shrink-0 whitespace-nowrap bg-red-100 text-red-700">{label ?? 'Prüfen'}</Badge>
 }
 
 function SectionTitle({ title, description }: { title: string; description: string }) {
@@ -254,11 +257,12 @@ function SectionTitle({ title, description }: { title: string; description: stri
 
 function ServiceCard({ service }: { service: RailwayService }) {
   const Icon = SERVICE_ICONS[service.key] ?? Server
+  const directCheck = service.status === 'DIRECT'
   return (
     <div className={`rounded-xl border bg-white p-5 ${service.ok ? 'border-gray-200' : 'border-red-200'}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
-          <span className={`rounded-lg p-2 ${service.ok ? 'bg-violet-50 text-violet-600' : 'bg-red-50 text-red-600'}`}>
+          <span className={`shrink-0 rounded-lg p-2 ${service.ok ? 'bg-violet-50 text-violet-600' : 'bg-red-50 text-red-600'}`}>
             <Icon size={18} />
           </span>
           <div className="min-w-0">
@@ -266,22 +270,31 @@ function ServiceCard({ service }: { service: RailwayService }) {
             <p className="mt-1 text-xs leading-5 text-gray-500">{service.role}</p>
           </div>
         </div>
-        <StatusBadge ok={service.ok} />
+        <StatusBadge ok={service.ok} label={service.ok && directCheck ? 'Erreichbar' : undefined} />
       </div>
       <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-gray-100 pt-4 text-xs">
-        <div>
-          <dt className="text-gray-400">Replicas</dt>
-          <dd className="mt-1 font-semibold text-gray-800">
-            {service.running_replicas} / {service.desired_replicas} aktiv
-          </dd>
-        </div>
-        <div>
-          <dt className="text-gray-400">Deployment</dt>
-          <dd className="mt-1 font-mono font-medium text-gray-700">{shortId(service.deployment_id)}</dd>
-        </div>
+        {directCheck ? (
+          <div className="col-span-2">
+            <dt className="text-gray-400">Prüfung</dt>
+            <dd className="mt-1 font-semibold text-gray-800">Direkte Verbindung und Heartbeat</dd>
+          </div>
+        ) : (
+          <>
+            <div>
+              <dt className="text-gray-400">Replicas</dt>
+              <dd className="mt-1 font-semibold text-gray-800">
+                {service.running_replicas} / {service.desired_replicas} aktiv
+              </dd>
+            </div>
+            <div>
+              <dt className="text-gray-400">Deployment</dt>
+              <dd className="mt-1 font-mono font-medium text-gray-700">{shortId(service.deployment_id)}</dd>
+            </div>
+          </>
+        )}
         <div className="col-span-2">
           <dt className="text-gray-400">Quelle</dt>
-          <dd className="mt-1 truncate font-medium text-gray-700" title={service.source}>{service.source || 'Railway-Image'}</dd>
+          <dd className="mt-1 truncate font-medium text-gray-700" title={service.source}>{service.source}</dd>
         </div>
       </dl>
     </div>
@@ -337,6 +350,87 @@ export default function HealthPage() {
   )
   const postgresVolume = infrastructure?.volumes.find((volume) => volume.service === 'Postgres')
   const redisVolume = infrastructure?.volumes.find((volume) => volume.service === 'Redis')
+  const directServices: RailwayService[] = health ? [
+    {
+      key: 'frontend',
+      name: 'hostly_frontend',
+      label: 'Admin-Frontend',
+      role: 'Stellt die geschützte Verwaltungsoberfläche bereit.',
+      ok: true,
+      status: 'DIRECT',
+      running_replicas: 0,
+      desired_replicas: 0,
+      deployment_id: null,
+      deployed_at: null,
+      regions: [],
+      source: 'Diese Admin-Oberfläche',
+    },
+    {
+      key: 'backend',
+      name: 'hostly-backend',
+      label: 'Backend-API',
+      role: 'Verarbeitet App- und Admin-Anfragen, Authentifizierung, Events, Chats und Safe Walk.',
+      ok: true,
+      status: 'DIRECT',
+      running_replicas: 0,
+      desired_replicas: 0,
+      deployment_id: infrastructure?.runtime.deployment_id || null,
+      deployed_at: null,
+      regions: infrastructure?.runtime.region ? [infrastructure.runtime.region] : [],
+      source: 'Aktuelle Health-API',
+    },
+    {
+      key: 'worker',
+      name: 'hostly-worker',
+      label: 'Hintergrund-Worker',
+      role: 'Verarbeitet Safe-Walk-Zeitpunkte, Event-Erinnerungen und Betriebsalarme.',
+      ok: Boolean(
+        health.workers.safe_walk_cron.ok
+        && health.workers.event_reminder_cron.ok
+        && health.workers.admin_alerts?.ok,
+      ),
+      status: 'DIRECT',
+      running_replicas: 0,
+      desired_replicas: 0,
+      deployment_id: null,
+      deployed_at: null,
+      regions: [],
+      source: 'Drei aktuelle Worker-Heartbeats',
+    },
+    {
+      key: 'postgres',
+      name: 'Postgres',
+      label: 'PostgreSQL',
+      role: 'Speichert alle dauerhaften Anwendungs- und Nutzerdaten.',
+      ok: infrastructure?.postgres.ok ?? health.checks.database?.ok ?? false,
+      status: 'DIRECT',
+      running_replicas: 0,
+      desired_replicas: 0,
+      deployment_id: null,
+      deployed_at: null,
+      regions: [],
+      source: 'Direkte Datenbankabfrage',
+    },
+    {
+      key: 'redis',
+      name: 'Redis',
+      label: 'Redis',
+      role: 'Transportiert kurzlebige Django-Channels-Nachrichten.',
+      ok: infrastructure?.redis.ok ?? health.checks.redis?.ok ?? false,
+      status: 'DIRECT',
+      running_replicas: 0,
+      desired_replicas: 0,
+      deployment_id: null,
+      deployed_at: null,
+      regions: [],
+      source: 'Direkter Ping und INFO-Abfrage',
+    },
+  ] : []
+  const services = infrastructure?.services.length ? infrastructure.services : directServices
+  const healthyServiceCount = services.filter((service) => service.ok).length
+  const backendService = services.find((service) => service.key === 'backend')
+  const pitrOk = infrastructure?.postgres.pitr.ok ?? null
+  const backups = infrastructure?.backups
 
   return (
     <div className="p-8">
@@ -380,14 +474,24 @@ export default function HealthPage() {
               <div className="text-right text-xs text-gray-500">
                 <p>{infrastructure?.provider ?? 'Railway'} · {infrastructure?.environment || infrastructure?.runtime.environment || 'production'}</p>
                 <p className="mt-1">Geprüft: {formatDate(health.checked_at)}</p>
+                <div className="mt-3 flex flex-wrap justify-end gap-2">
+                  <Badge className="whitespace-nowrap bg-white/70 text-green-700">
+                    {healthyServiceCount}/{services.length} Services online
+                  </Badge>
+                  {backendService && backendService.desired_replicas > 0 && (
+                    <Badge className="whitespace-nowrap bg-white/70 text-green-700">
+                      {backendService.running_replicas}/{backendService.desired_replicas} Backend-Replikas
+                    </Badge>
+                  )}
+                </div>
               </div>
             </div>
             {infrastructure?.runtime && (
               <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-t border-black/5 pt-4 text-xs text-gray-600">
-                <span>Region: <strong>{infrastructure.runtime.region || '–'}</strong></span>
-                <span>Backend-Deployment: <strong className="font-mono">{shortId(infrastructure.runtime.deployment_id)}</strong></span>
-                <span>Commit: <strong className="font-mono">{shortId(infrastructure.runtime.commit_sha)}</strong></span>
-                <span>Antwortende Replica: <strong className="font-mono">{shortId(infrastructure.runtime.replica_id)}</strong></span>
+                {infrastructure.runtime.region && <span>Region: <strong>{infrastructure.runtime.region}</strong></span>}
+                {infrastructure.runtime.deployment_id && <span>Backend-Deployment: <strong className="font-mono">{shortId(infrastructure.runtime.deployment_id)}</strong></span>}
+                {infrastructure.runtime.commit_sha && <span>Commit: <strong className="font-mono">{shortId(infrastructure.runtime.commit_sha)}</strong></span>}
+                {infrastructure.runtime.replica_id && <span>Antwortende Replica: <strong className="font-mono">{shortId(infrastructure.runtime.replica_id)}</strong></span>}
               </div>
             )}
           </section>
@@ -395,15 +499,21 @@ export default function HealthPage() {
           <section className="mb-7">
             <SectionTitle
               title="Railway-Services"
-              description="Live-Status der tatsächlich laufenden Deployments und Replica-Anzahl."
+              description={infrastructure?.services.length
+                ? 'Von Railway bestätigte Deployments und tatsächlich laufende Replica-Anzahl.'
+                : 'Direkte Betriebsprüfungen halten den Status verlässlich sichtbar, während Railway-Metadaten neu geladen werden.'}
             />
-            {infrastructure?.services.length ? (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-                {infrastructure.services.map((service) => <ServiceCard key={service.key} service={service} />)}
-              </div>
-            ) : (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                {infrastructure?.detail ?? 'Railway-Live-Daten sind derzeit nicht verfügbar.'}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {services.map((service) => <ServiceCard key={service.key} service={service} />)}
+            </div>
+            {(!infrastructure?.services.length || infrastructure.stale) && (
+              <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
+                <CircleDashed size={14} className="shrink-0" />
+                <span>
+                  {infrastructure?.stale
+                    ? `Railway-Metadaten werden aktualisiert; angezeigt wird die letzte erfolgreiche Prüfung vom ${formatDate(infrastructure.fetched_at)}.`
+                    : 'Railway-Metadaten werden neu geladen. Die grünen Zustände stammen bis dahin aus direkten Verbindungs- und Heartbeat-Prüfungen.'}
+                </span>
               </div>
             )}
           </section>
@@ -413,12 +523,12 @@ export default function HealthPage() {
               title="Datenbanken und Wiederherstellung"
               description="Direkte Live-Prüfungen von PostgreSQL, Redis, PITR, Volumes und Railway-Backups."
             />
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <div className="rounded-xl border border-gray-200 bg-white p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <span className="rounded-lg bg-blue-50 p-2 text-blue-600"><Database size={18} /></span>
-                    <div>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="shrink-0 rounded-lg bg-blue-50 p-2 text-blue-600"><Database size={18} /></span>
+                    <div className="min-w-0">
                       <h4 className="text-sm font-semibold text-gray-900">PostgreSQL</h4>
                       <p className="mt-0.5 text-xs text-gray-500">Dauerhafte Hauptdatenbank</p>
                     </div>
@@ -435,9 +545,9 @@ export default function HealthPage() {
 
               <div className="rounded-xl border border-gray-200 bg-white p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <span className="rounded-lg bg-emerald-50 p-2 text-emerald-600"><Radio size={18} /></span>
-                    <div>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="shrink-0 rounded-lg bg-emerald-50 p-2 text-emerald-600"><Radio size={18} /></span>
+                    <div className="min-w-0">
                       <h4 className="text-sm font-semibold text-gray-900">Redis</h4>
                       <p className="mt-0.5 text-xs text-gray-500">Kurzlebiger Channel-Transport</p>
                     </div>
@@ -456,45 +566,45 @@ export default function HealthPage() {
 
               <div className="rounded-xl border border-gray-200 bg-white p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <span className="rounded-lg bg-violet-50 p-2 text-violet-600"><Clock3 size={18} /></span>
-                    <div>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="shrink-0 rounded-lg bg-violet-50 p-2 text-violet-600"><Clock3 size={18} /></span>
+                    <div className="min-w-0">
                       <h4 className="text-sm font-semibold text-gray-900">Point-in-time Recovery</h4>
                       <p className="mt-0.5 text-xs text-gray-500">PostgreSQL-WAL-Archivierung</p>
                     </div>
                   </div>
-                  <StatusBadge ok={Boolean(infrastructure?.postgres.pitr.ok && infrastructure?.pitr_bucket?.ok)} />
+                  <StatusBadge ok={pitrOk} label={pitrOk ? 'Aktiv' : undefined} />
                 </div>
                 <dl className="mt-5 space-y-3 text-xs">
                   <div className="flex justify-between gap-3"><dt className="text-gray-400">Archivierte WAL-Segmente</dt><dd className="font-semibold text-gray-800">{infrastructure?.postgres.pitr.archived_count ?? 0}</dd></div>
                   <div className="flex justify-between gap-3"><dt className="text-gray-400">Archivfehler</dt><dd className="font-semibold text-gray-800">{infrastructure?.postgres.pitr.failed_count ?? 0}</dd></div>
                   <div><dt className="text-gray-400">Letztes Archiv</dt><dd className="mt-1 font-semibold text-gray-800">{formatDate(infrastructure?.postgres.pitr.last_archived_at)}</dd></div>
-                  <div><dt className="text-gray-400">Bucket</dt><dd className="mt-1 font-semibold text-gray-800">{infrastructure?.pitr_bucket?.name ?? 'Nicht bestätigt'}</dd></div>
+                  <div><dt className="text-gray-400">Ziel</dt><dd className="mt-1 font-semibold text-gray-800">{infrastructure?.pitr_bucket?.name ?? (pitrOk ? 'Railway PITR · WAL-Archivierung aktiv' : '–')}</dd></div>
                 </dl>
               </div>
 
               <div className="rounded-xl border border-gray-200 bg-white p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <span className="rounded-lg bg-amber-50 p-2 text-amber-600"><HardDrive size={18} /></span>
-                    <div>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="shrink-0 rounded-lg bg-amber-50 p-2 text-amber-600"><HardDrive size={18} /></span>
+                    <div className="min-w-0">
                       <h4 className="text-sm font-semibold text-gray-900">Volume-Backups</h4>
                       <p className="mt-0.5 text-xs text-gray-500">Unabhängig von PITR</p>
                     </div>
                   </div>
-                  <StatusBadge ok={infrastructure?.backups?.ok ?? null} />
+                  <StatusBadge ok={backups?.ok ?? null} label={backups?.ok ? 'Gesichert' : backups ? undefined : 'Metadaten'} />
                 </div>
                 <div className="mt-5 flex flex-wrap gap-2">
-                  {infrastructure?.backups?.schedules.map((schedule) => (
+                  {backups?.schedules.map((schedule) => (
                     <Badge key={schedule.id} className="bg-gray-100 text-gray-700">
                       {BACKUP_KIND_LABELS[schedule.kind] ?? schedule.kind}
                     </Badge>
                   ))}
                 </div>
                 <dl className="mt-4 space-y-3 text-xs">
-                  <div><dt className="text-gray-400">Letztes Backup</dt><dd className="mt-1 font-semibold text-gray-800">{infrastructure?.backups?.latest?.name ?? 'Noch keines'}</dd></div>
-                  <div><dt className="text-gray-400">Erstellt</dt><dd className="mt-1 font-semibold text-gray-800">{formatDate(infrastructure?.backups?.latest?.createdAt)}</dd></div>
-                  <div className="flex justify-between gap-3"><dt className="text-gray-400">Verfügbare Backups</dt><dd className="font-semibold text-gray-800">{infrastructure?.backups?.count ?? 0}</dd></div>
+                  <div><dt className="text-gray-400">Letztes Backup</dt><dd className="mt-1 font-semibold text-gray-800">{backups ? backups.latest?.name ?? 'Noch keines' : '–'}</dd></div>
+                  <div><dt className="text-gray-400">Erstellt</dt><dd className="mt-1 font-semibold text-gray-800">{backups ? formatDate(backups.latest?.createdAt) : '–'}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="text-gray-400">Verfügbare Backups</dt><dd className="font-semibold text-gray-800">{backups?.count ?? '–'}</dd></div>
                 </dl>
               </div>
             </div>
