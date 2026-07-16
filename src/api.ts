@@ -1,6 +1,10 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios'
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const configuredBaseUrl = import.meta.env.VITE_API_URL?.trim()
+const defaultBaseUrl = import.meta.env.PROD
+  ? 'https://app.meet-hostly.com'
+  : 'http://localhost:8000'
+const BASE_URL = (configuredBaseUrl || defaultBaseUrl).replace(/\/+$/, '')
 
 export const api = axios.create({ baseURL: BASE_URL })
 
@@ -26,7 +30,7 @@ export function getApiErrorMessage(error: unknown, fallback = 'Die Anfrage ist f
     }
     if (error.response?.status === 403) return 'Nur Superuser duerfen auf diese Admin-Webseite zugreifen.'
     if (error.response?.status === 401) return 'E-Mail oder Passwort ist falsch.'
-    if (!error.response) return 'API nicht erreichbar. Pruefe VITE_API_URL und ob das Backend laeuft.'
+    if (!error.response) return 'Die Hostly-API ist nicht erreichbar. Bitte prüfe die Internetverbindung und lade die Seite neu.'
   }
   return error instanceof Error ? error.message : fallback
 }
