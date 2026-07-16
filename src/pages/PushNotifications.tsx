@@ -37,7 +37,7 @@ type CopyField = 'title_de' | 'body_de' | 'title_en' | 'body_en'
 
 const TARGETS: { value: TargetType; label: string; description: string }[] = [
   { value: 'users', label: 'Einzelne Nutzer', description: 'Bis zu 100 gezielt ausgewählte Konten.' },
-  { value: 'all', label: 'Alle aktiven Konten', description: 'Alle nicht gesperrten Konten mit erreichbarem Push-Gerät.' },
+  { value: 'all', label: 'Alle aktiven Konten', description: 'Alle nicht gesperrten Konten, die Hostly-Team-Nachrichten erlaubt haben und per Push erreichbar sind.' },
   { value: 'active_30d', label: 'Letzte 30 Tage aktiv', description: 'Nutzer, die in den letzten 30 Tagen in der App aktiv waren.' },
   { value: 'city', label: 'Stadt', description: 'Alle erreichbaren Nutzer mit derselben Profilstadt.' },
   { value: 'category', label: 'Kategorie-Abonnenten', description: 'Nutzer, die Pushs zu einer Kategorie abonniert haben.' },
@@ -301,14 +301,14 @@ export default function PushNotificationsPage() {
               <p className="mt-3 text-xs font-medium text-amber-700">Für eine englische Fassung bitte Titel und Text ausfüllen – oder beide Felder leer lassen.</p>
             )}
             <p className="mt-3 text-xs text-gray-500">Bleibt English leer, wird die deutsche Fassung an alle Geräte gesendet.</p>
-            <p className="mt-4 text-xs text-gray-400">Die globale Push-Einstellung der Nutzer wird respektiert. Es wird kein E-Mail-Ersatz versendet.</p>
+            <p className="mt-4 text-xs text-gray-400">Die globale Push-Einstellung und der Profil-Schalter „Nachrichten vom Hostly-Team“ werden respektiert. Es wird kein E-Mail-Ersatz versendet.</p>
           </section>
         </div>
 
         <aside className="xl:col-span-1">
           <div className="sticky top-6 rounded-xl border border-gray-200 bg-white p-5">
             <h3 className="text-sm font-semibold text-gray-800">3. Prüfen und senden</h3>
-            <p className="mt-2 text-xs leading-5 text-gray-500">Die Vorschau wird direkt im Backend berechnet und berücksichtigt aktive Geräte sowie die Push-Einstellung.</p>
+            <p className="mt-2 text-xs leading-5 text-gray-500">Die Vorschau wird direkt im Backend berechnet und berücksichtigt aktive Geräte sowie beide Push-Freigaben.</p>
             <button
               type="button"
               disabled={!targetComplete || !copyComplete || previewMutation.isPending || sendMutation.isPending}
