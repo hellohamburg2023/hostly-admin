@@ -193,6 +193,9 @@ export const getProductAnalytics = (days: number) =>
 
 export const getHealth = () => api.get('/api/admin/health/').then((r) => r.data)
 
+export const getSentryMonitoring = (days: number) =>
+  api.get('/api/admin/sentry/', { params: { days } }).then((r) => r.data)
+
 export const getCategories = () =>
   api.get('/api/admin/categories/').then((r) => r.data)
 

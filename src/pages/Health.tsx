@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import { getApiErrorMessage, getAnalytics, getHealth } from '../api'
+import { getApiErrorMessage, getAnalytics, getHealth, getSentryMonitoring } from '../api'
 import { Badge, ErrorBanner } from '../adminUi'
-import { CheckCircle, CircleDashed, RefreshCw, XCircle } from 'lucide-react'
+import { CheckCircle, CircleDashed, ExternalLink, RefreshCw, ShieldCheck, XCircle } from 'lucide-react'
 
 interface Health {
   checks: Record<string, { ok: boolean; optional?: boolean; detail?: string; backend?: string; sandbox?: boolean }>
@@ -21,6 +21,20 @@ interface Analytics {
   requests: { total: number; accepted: number; acceptance_rate: number }
   verification: { total: number; verified: number; pending: number; rate: number }
   safe_walks: { total: number; active: number; escalated: number; escalation_rate: number }
+}
+
+interface SentryMonitoring {
+  configured: boolean
+  period_days: number
+  environment: 'production'
+  projects: Record<string, { unresolved: number; events: number }>
+  unresolved: number
+  events: number
+  by_level: Record<string, number>
+  latest_seen_at: string | null
+  truncated: boolean
+  dashboard_url: string
+  fetched_at?: string
 }
 
 const CHECK_LABELS: Record<string, string> = {
@@ -51,12 +65,27 @@ function CheckCard({ checkKey, check }: { checkKey: string; check: { ok: boolean
 }
 
 export default function HealthPage() {
-  const { data: health, isLoading, error, refetch, isFetching } = useQuery<Health>({
+  const { data: health, isLoading, error, refetch: refetchHealth, isFetching } = useQuery<Health>({
     queryKey: ['health'],
     queryFn: getHealth,
     refetchInterval: 30_000,
   })
   const { data: analytics } = useQuery<Analytics>({ queryKey: ['analytics'], queryFn: getAnalytics })
+  const {
+    data: sentry,
+    error: sentryError,
+    refetch: refetchSentry,
+    isFetching: isSentryFetching,
+  } = useQuery<SentryMonitoring>({
+    queryKey: ['sentry-monitoring', 7],
+    queryFn: () => getSentryMonitoring(7),
+    refetchInterval: 300_000,
+  })
+  const number = new Intl.NumberFormat('de-DE')
+  const refreshAll = () => {
+    void refetchHealth()
+    void refetchSentry()
+  }
 
   return (
     <div className="p-8">
@@ -66,14 +95,15 @@ export default function HealthPage() {
           <p className="text-sm text-gray-500 mt-0.5">Backend-Abhängigkeiten, Worker-Signale und sicherheitsrelevante Metriken</p>
         </div>
         <button
-          onClick={() => refetch()}
+          onClick={refreshAll}
           className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
         >
-          <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} /> Aktualisieren
+          <RefreshCw size={14} className={isFetching || isSentryFetching ? 'animate-spin' : ''} /> Aktualisieren
         </button>
       </div>
 
       <ErrorBanner message={error ? getApiErrorMessage(error) : ''} />
+      <ErrorBanner message={sentryError ? getApiErrorMessage(sentryError, 'Sentry-Diagnosestatus konnte nicht geladen werden.') : ''} />
 
       {isLoading || !health ? (
         <div className="text-gray-400">Laden...</div>
@@ -84,6 +114,73 @@ export default function HealthPage() {
               <CheckCard key={name} checkKey={name} check={check} />
             ))}
           </div>
+
+          {sentry && (
+            <section className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck size={18} className="text-violet-600" />
+                    <h3 className="text-sm font-semibold text-gray-900">Sentry-Fehlerdiagnose</h3>
+                    <Badge className={sentry.configured ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800'}>
+                      {sentry.configured ? 'Verbunden' : 'Lesezugriff fehlt'}
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-gray-500">
+                    Produktion · letzte {sentry.period_days} Tage · nur aggregierte Werte, keine Fehlertexte oder Nutzerdaten
+                  </p>
+                </div>
+                <a
+                  href={sentry.dashboard_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-violet-600 hover:text-violet-700"
+                >
+                  Sentry öffnen <ExternalLink size={12} />
+                </a>
+              </div>
+
+              {sentry.configured ? (
+                <>
+                  <dl className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4">
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-gray-400">Offene Fehlergruppen</dt>
+                      <dd className="mt-1 text-2xl font-bold text-gray-900">{number.format(sentry.unresolved)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-gray-400">Ereignisse</dt>
+                      <dd className="mt-1 text-2xl font-bold text-gray-900">{number.format(sentry.events)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-gray-400">Backend / iOS</dt>
+                      <dd className="mt-1 text-sm font-semibold text-gray-900">
+                        {sentry.projects['hostly-backend']?.unresolved ?? 0} / {sentry.projects['hostly-ios']?.unresolved ?? 0}
+                      </dd>
+                      <p className="mt-1 text-xs text-gray-500">offene Gruppen</p>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-gray-400">Letztes Ereignis</dt>
+                      <dd className="mt-1 text-sm font-semibold text-gray-900">
+                        {sentry.latest_seen_at ? new Date(sentry.latest_seen_at).toLocaleString('de-DE') : 'Keine'}
+                      </dd>
+                    </div>
+                  </dl>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {Object.entries(sentry.by_level).map(([level, count]) => (
+                      <Badge key={level} className={level === 'fatal' || level === 'error' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}>
+                        {level}: {number.format(count)}
+                      </Badge>
+                    ))}
+                    {sentry.truncated && <Badge className="bg-amber-100 text-amber-800">Ergebnis auf 100 Gruppen begrenzt</Badge>}
+                  </div>
+                </>
+              ) : (
+                <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  Die Fehlerüberwachung kann aktiv sein; für diese Zusammenfassung fehlt noch der serverseitige Sentry-Lesetoken.
+                </p>
+              )}
+            </section>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <div className="rounded-xl border border-gray-200 bg-white p-5">
