@@ -7,7 +7,13 @@ interface Health {
   checks: Record<string, { ok: boolean; optional?: boolean; detail?: string; backend?: string; sandbox?: boolean }>
   workers: {
     safe_walk_cron: { ok: boolean; heartbeat_ok: boolean; last_seen_at: string | null; last_result: Record<string, unknown>; overdue_check_ins: number; overdue_escalations: number }
-    event_reminder_cron: { ok: boolean; sample: string[] }
+    event_reminder_cron: {
+      ok: boolean
+      heartbeat_ok: boolean
+      last_seen_at: string | null
+      last_result: Record<string, unknown>
+      sample: string[]
+    }
   }
 }
 
@@ -107,11 +113,17 @@ export default function HealthPage() {
 
             <div className="rounded-xl border border-gray-200 bg-white p-5">
               <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-700">Event-Reminder-Cron</h3>
+                <h3 className="text-sm font-semibold text-gray-700">Event-Reminder-Worker</h3>
                 <Badge className={health.workers.event_reminder_cron.ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
                   {health.workers.event_reminder_cron.ok ? 'OK' : 'Prüfen'}
                 </Badge>
               </div>
+              <p className="mb-3 text-xs leading-5 text-gray-500">
+                Prüft im Worker-Loop die ausgewählten Erinnerungen 1 Tag und 2 Stunden vorher. Bereits versendete Kanäle werden dauerhaft gegen Doppelversand gesperrt.
+              </p>
+              <p className="mb-4 text-xs text-gray-500">
+                Heartbeat: {health.workers.event_reminder_cron.last_seen_at ? new Date(health.workers.event_reminder_cron.last_seen_at).toLocaleString('de-DE') : 'noch nicht empfangen'}
+              </p>
               <div className="rounded-lg bg-gray-50 p-3">
                 {health.workers.event_reminder_cron.sample.length === 0 ? (
                   <p className="text-sm text-gray-400">Keine Ausgabe</p>

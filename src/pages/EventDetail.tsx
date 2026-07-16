@@ -255,9 +255,14 @@ export default function EventDetailPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Section title="Teilnehmer">
               <div className="rounded-xl border border-gray-200 bg-white">
-                {event.participants.length === 0 ? (
-                  <p className="p-4 text-sm text-gray-400">Keine Teilnehmer</p>
-                ) : event.participants.map((participant) => (
+                <div className="border-b border-gray-100 px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <UserLine user={event.host} />
+                    <Badge className="bg-violet-100 text-violet-700">Host</Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-400">Erstellt {formatDate(event.created_at, true)}</p>
+                </div>
+                {event.participants.map((participant) => (
                   <div key={participant.id} className="border-b border-gray-100 px-4 py-3 last:border-0">
                     <UserLine user={participant.user} />
                     <p className="mt-1 text-xs text-gray-400">Seit {formatDate(participant.created_at, true)}</p>
