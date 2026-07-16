@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { LoaderCircle } from 'lucide-react'
 import { useAuth } from '../useAuth'
@@ -155,7 +156,9 @@ export default function Login() {
 
   const handleAppleLogin = async () => {
     setError('')
-    setAppleLoading(true)
+    // Render the loading state before Apple's synchronous popup call so the
+    // button responds immediately, just like the native app's login button.
+    flushSync(() => setAppleLoading(true))
     let loginCompleted = false
     try {
       const config = appleConfig
