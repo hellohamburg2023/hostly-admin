@@ -6,6 +6,62 @@ import { Plus, Pencil, Trash2, Check, X } from 'lucide-react'
 
 interface Interest { id: number; name: string; slug: string; group_title: string; sort_order: number }
 
+function sortOrderDetails(interests: Interest[], groupTitle: string, excludeId?: number | null) {
+  const occupied = new Set(
+    interests
+      .filter((interest) => interest.group_title === groupTitle && interest.id !== excludeId)
+      .map((interest) => interest.sort_order),
+  )
+  const highest = [...occupied].reduce((current, position) => Math.max(current, position), 0)
+  return {
+    occupied,
+    next: Math.max(highest + 1, 1),
+  }
+}
+
+function InterestSortOrderSelect({
+  interests,
+  groupTitle,
+  value,
+  excludeId,
+  onChange,
+}: {
+  interests: Interest[]
+  groupTitle: string
+  value: number
+  excludeId?: number | null
+  onChange: (value: number) => void
+}) {
+  const { occupied, next } = sortOrderDetails(interests, groupTitle, excludeId)
+  const highestOption = Math.max(next, value)
+  const positions = Array.from({ length: highestOption }, (_, index) => index + 1)
+  const hasValidGroup = Boolean(groupTitle.trim())
+
+  return (
+    <select
+      value={value}
+      disabled={!hasValidGroup}
+      onChange={(event) => onChange(Number(event.target.value))}
+      aria-label="Position innerhalb der Gruppe"
+      className="w-full min-w-40 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+    >
+      {!hasValidGroup && <option value={0}>Zuerst Gruppe wählen</option>}
+      {hasValidGroup && value < 1 && <option value={0}>Position wählen</option>}
+      {hasValidGroup && positions.map((position) => {
+        const isOccupied = occupied.has(position)
+        return (
+          <option key={position} value={position} disabled={isOccupied}>
+            Position {position}
+            {position === 1 ? ' — ganz oben' : ''}
+            {position === next ? ' — am Ende' : ''}
+            {isOccupied ? ' — bereits belegt' : ''}
+          </option>
+        )
+      })}
+    </select>
+  )
+}
+
 function slugFromName(name: string) {
   return name
     .trim()
@@ -44,6 +100,10 @@ export default function InterestsPage() {
   })
 
   const groups = [...new Set(interests.map(i => i.group_title).filter(Boolean))]
+  const newSortOrderTaken = newValues.sort_order > 0
+    && sortOrderDetails(interests, newValues.group_title).occupied.has(newValues.sort_order)
+  const editSortOrderTaken = editValues.sort_order > 0
+    && sortOrderDetails(interests, editValues.group_title, editId).occupied.has(editValues.sort_order)
   const errorMessage = createMut.error
     ? getApiErrorMessage(createMut.error)
     : updateMut.error
@@ -57,7 +117,10 @@ export default function InterestsPage() {
       <div className="admin-page-header flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-gray-900">Interessen</h2>
         <button
-          onClick={() => setAdding(true)}
+          onClick={() => {
+            setAdding(true)
+            setNewValues({ name: '', group_title: '', sort_order: 0 })
+          }}
           className="flex items-center gap-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
         >
           <Plus size={14} /> Neues Interesse
@@ -87,13 +150,30 @@ export default function InterestsPage() {
                     <span className="mt-1 block text-xs text-gray-500">Die technische Kennung wird automatisch erstellt.</span>
                   </td>
                   <td className="px-4 py-2">
-                    <input list="groups-list" value={newValues.group_title} onChange={e => setNewValues(v => ({ ...v, group_title: e.target.value }))} placeholder="Gruppe" className="w-full border border-gray-300 rounded px-2 py-1 text-sm" />
+                    <input
+                      list="groups-list"
+                      value={newValues.group_title}
+                      onChange={event => {
+                        const group_title = event.target.value
+                        const { next } = sortOrderDetails(interests, group_title)
+                        setNewValues(value => ({ ...value, group_title, sort_order: group_title.trim() ? next : 0 }))
+                      }}
+                      placeholder="Gruppe"
+                      className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                    />
                     <datalist id="groups-list">{groups.map(g => <option key={g} value={g} />)}</datalist>
                   </td>
-                  <td className="px-4 py-2"><input type="number" value={newValues.sort_order} onChange={e => setNewValues(v => ({ ...v, sort_order: Number(e.target.value) }))} className="w-20 border border-gray-300 rounded px-2 py-1 text-sm" /></td>
+                  <td className="px-4 py-2">
+                    <InterestSortOrderSelect
+                      interests={interests}
+                      groupTitle={newValues.group_title}
+                      value={newValues.sort_order}
+                      onChange={sort_order => setNewValues(value => ({ ...value, sort_order }))}
+                    />
+                  </td>
                   <td className="px-4 py-2 flex gap-1">
                     <button
-                      disabled={!newValues.name.trim() || !newValues.group_title.trim()}
+                      disabled={!newValues.name.trim() || !newValues.group_title.trim() || newValues.sort_order < 1 || newSortOrderTaken}
                       onClick={() => createMut.mutate({ ...newValues, slug: slugFromName(newValues.name) })}
                       className="rounded p-1.5 text-green-600 hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-30"
                     ><Check size={14} /></button>
@@ -107,17 +187,39 @@ export default function InterestsPage() {
                     {editId === i.id ? <input autoFocus value={editValues.name} onChange={e => setEditValues(v => ({ ...v, name: e.target.value }))} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" /> : i.name}
                   </td>
                   <td className="px-4 py-3 text-gray-600">
-                    {editId === i.id ? <input value={editValues.group_title} onChange={e => setEditValues(v => ({ ...v, group_title: e.target.value }))} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" /> : <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs">{i.group_title}</span>}
+                    {editId === i.id ? (
+                      <input
+                        value={editValues.group_title}
+                        onChange={event => {
+                          const group_title = event.target.value
+                          const { next } = sortOrderDetails(interests, group_title, i.id)
+                          setEditValues(value => ({
+                            ...value,
+                            group_title,
+                            sort_order: group_title === i.group_title ? i.sort_order : group_title.trim() ? next : 0,
+                          }))
+                        }}
+                        className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                      />
+                    ) : <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs">{i.group_title}</span>}
                   </td>
                   <td className="px-4 py-3 text-gray-500">
-                    {editId === i.id ? <input type="number" value={editValues.sort_order} onChange={e => setEditValues(v => ({ ...v, sort_order: Number(e.target.value) }))} className="w-20 border border-gray-300 rounded px-2 py-1 text-sm" /> : i.sort_order}
+                    {editId === i.id ? (
+                      <InterestSortOrderSelect
+                        interests={interests}
+                        groupTitle={editValues.group_title}
+                        value={editValues.sort_order}
+                        excludeId={i.id}
+                        onChange={sort_order => setEditValues(value => ({ ...value, sort_order }))}
+                      />
+                    ) : `Position ${i.sort_order}`}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
                       {editId === i.id ? (
                         <>
                           <button
-                            disabled={!editValues.name.trim() || !editValues.group_title.trim()}
+                            disabled={!editValues.name.trim() || !editValues.group_title.trim() || editValues.sort_order < 1 || editSortOrderTaken}
                             onClick={() => updateMut.mutate({ id: i.id, data: editValues })}
                             className="rounded p-1.5 text-green-600 hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-30"
                           ><Check size={14} /></button>
