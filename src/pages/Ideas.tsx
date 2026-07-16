@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  createIdea, deleteIdea, getApiErrorMessage, getCategories, getIdeas,
+  createIdea, cursorFromUrl, deleteIdea, getApiErrorMessage, getCategories, getIdeas,
   getInterests, pageResults, patchIdea,
 } from '../api'
+import { SystemIcon, SystemIconSelect } from '../adminIcons'
 import { formatDate } from '../adminFormat'
 import { Badge, EmptyState, ErrorBanner, Pagination } from '../adminUi'
 import {
@@ -90,6 +91,24 @@ function payloadFromForm(form: IdeaForm) {
   }
 }
 
+async function getAllIdeasForSorting(): Promise<Idea[]> {
+  const allIdeas: Idea[] = []
+  let nextCursor = ''
+
+  do {
+    const response = await getIdeas({
+      page_size: '60',
+      ...(nextCursor ? { cursor: nextCursor } : {}),
+    }) as Page<Idea> | Idea[]
+
+    if (Array.isArray(response)) return response
+    allIdeas.push(...(response.results ?? []))
+    nextCursor = cursorFromUrl(response.next)
+  } while (nextCursor)
+
+  return allIdeas
+}
+
 export default function IdeasPage() {
   const [cursor, setCursor] = useState('')
   const [kind, setKind] = useState('')
@@ -111,6 +130,14 @@ export default function IdeasPage() {
   })
   const { data: categoryData } = useQuery({ queryKey: ['categories'], queryFn: getCategories })
   const { data: interestData } = useQuery({ queryKey: ['interests'], queryFn: getInterests })
+  const {
+    data: allIdeas = [],
+    isLoading: isLoadingSortOrders,
+    error: sortOrdersError,
+  } = useQuery({
+    queryKey: ['ideas', 'all-for-sorting'],
+    queryFn: getAllIdeasForSorting,
+  })
   const ideas = pageResults<Idea>(data)
   const categories = pageResults<Category>(categoryData)
   const interests = pageResults<Interest>(interestData)
@@ -162,8 +189,21 @@ export default function IdeasPage() {
     }))
   }
 
+  const occupiedSortOrders = new Set(
+    allIdeas
+      .filter((idea) => idea.id !== editId)
+      .map((idea) => idea.sort_order),
+  )
+  const highestSortOrder = allIdeas.reduce((highest, idea) => Math.max(highest, idea.sort_order), 0)
+  const nextSortOrder = Math.max(highestSortOrder + 1, 1)
+  const maxSortOption = Math.max(nextSortOrder, form.sort_order)
+  const sortOrderOptions = Array.from({ length: maxSortOption }, (_, index) => index + 1)
+  const sortOrderConflict = occupiedSortOrders.has(form.sort_order)
+  const invalidSortOrder = form.sort_order < 1
+  const sortOrdersReady = !isLoadingSortOrders && !sortOrdersError
+
   const saveForm = () => {
-    if (!form.title.trim() || !form.category_id) return
+    if (!form.title.trim() || !form.category_id || invalidSortOrder || sortOrderConflict) return
     const payload = payloadFromForm(form)
     if (editId) updateMut.mutate({ id: editId, payload })
     else createMut.mutate(payload)
@@ -174,7 +214,11 @@ export default function IdeasPage() {
     updateMut.reset()
     setAdding(true)
     setEditId(null)
-    setForm({ ...BLANK_FORM, is_template: kind !== 'ideas' })
+    setForm({
+      ...BLANK_FORM,
+      is_template: kind !== 'ideas',
+      sort_order: sortOrdersReady ? nextSortOrder : 0,
+    })
   }
 
   const startEdit = (idea: Idea) => {
@@ -196,7 +240,13 @@ export default function IdeasPage() {
 
   const showForm = adding || editId !== null
   const isSaving = createMut.isPending || updateMut.isPending
-  const canSave = Boolean(form.title.trim() && form.category_id) && !isSaving
+  const canSave = Boolean(
+    form.title.trim()
+    && form.category_id
+    && !invalidSortOrder
+    && !sortOrderConflict
+    && sortOrdersReady,
+  ) && !isSaving
   const formTitle = editId
     ? `${form.is_template ? 'Vorlage' : 'Nutzer-Idee'} bearbeiten`
     : `${form.is_template ? 'Neue Vorlage' : 'Neue Nutzer-Idee'} erstellen`
@@ -205,6 +255,12 @@ export default function IdeasPage() {
     : form.is_template
       ? 'Vorlage erstellen'
       : 'Idee erstellen'
+
+  useEffect(() => {
+    if (adding && form.sort_order === 0 && sortOrdersReady) {
+      setForm((value) => ({ ...value, sort_order: nextSortOrder }))
+    }
+  }, [adding, form.sort_order, nextSortOrder, sortOrdersReady])
 
   useEffect(() => {
     if (!showForm) return
@@ -277,9 +333,9 @@ export default function IdeasPage() {
           {ideas.map((idea) => (
             <div key={idea.id} className="bg-white rounded-xl border border-gray-200 p-5">
               <div className="flex items-start justify-between gap-3 mb-3">
-                <div className="flex min-w-0 items-start gap-3">
+                  <div className="flex min-w-0 items-start gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-700">
-                    <Lightbulb size={17} />
+                    <SystemIcon name={idea.system_image} size={17} />
                   </div>
                   <div className="min-w-0">
                     <h3 className="font-semibold text-gray-900">{idea.title}</h3>
@@ -551,24 +607,48 @@ export default function IdeasPage() {
                   </summary>
                   <div className="grid grid-cols-1 gap-4 border-t border-gray-200 px-4 py-4 sm:grid-cols-2">
                     <label>
-                      <span className="mb-1.5 block text-sm font-medium text-gray-700">App-Icon</span>
-                      <input
+                      <span className="mb-1.5 block text-sm font-medium text-gray-700">Icon in der App</span>
+                      <SystemIconSelect
                         value={form.system_image}
-                        onChange={(event) => setForm((value) => ({ ...value, system_image: event.target.value }))}
-                        placeholder="z. B. lightbulb"
-                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                        onChange={(system_image) => setForm((value) => ({ ...value, system_image }))}
                       />
-                      <span className="mt-1 block text-xs text-gray-500">Name des verwendeten System-Icons</span>
+                      <span className="mt-1 block text-xs text-gray-500">Wähle das Motiv aus, das Nutzer in der App sehen.</span>
                     </label>
                     <label>
-                      <span className="mb-1.5 block text-sm font-medium text-gray-700">Sortierreihenfolge</span>
-                      <input
-                        type="number"
+                      <span className="mb-1.5 block text-sm font-medium text-gray-700">Position in der Liste</span>
+                      <select
                         value={form.sort_order}
+                        disabled={!sortOrdersReady}
                         onChange={(event) => setForm((value) => ({ ...value, sort_order: Number(event.target.value) }))}
-                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
-                      />
-                      <span className="mt-1 block text-xs text-gray-500">Kleinere Zahlen erscheinen zuerst</span>
+                        className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100 disabled:cursor-not-allowed disabled:bg-gray-100 ${
+                          sortOrderConflict ? 'border-red-400' : 'border-gray-300'
+                        }`}
+                      >
+                        {!sortOrdersReady && <option value={0}>Positionen werden geladen …</option>}
+                        {sortOrdersReady && invalidSortOrder && (
+                          <option value={0} disabled>Bitte eine freie Position auswählen</option>
+                        )}
+                        {sortOrderOptions.map((position) => {
+                          const isOccupied = occupiedSortOrders.has(position)
+                          return (
+                            <option key={position} value={position} disabled={isOccupied}>
+                              Position {position}
+                              {position === 1 ? ' — ganz oben' : ''}
+                              {position === nextSortOrder ? ' — am Ende' : ''}
+                              {isOccupied ? ' — bereits belegt' : ''}
+                            </option>
+                          )
+                        })}
+                      </select>
+                      {sortOrdersError ? (
+                        <span className="mt-1 block text-xs text-red-600">Die verfügbaren Positionen konnten nicht geladen werden.</span>
+                      ) : invalidSortOrder ? (
+                        <span className="mt-1 block text-xs text-red-600">Bitte wähle eine freie Position aus.</span>
+                      ) : sortOrderConflict ? (
+                        <span className="mt-1 block text-xs text-red-600">Diese Position ist bereits belegt. Bitte wähle eine freie Position.</span>
+                      ) : (
+                        <span className="mt-1 block text-xs text-gray-500">Belegte Positionen können nicht ausgewählt werden.</span>
+                      )}
                     </label>
                   </div>
                 </details>
