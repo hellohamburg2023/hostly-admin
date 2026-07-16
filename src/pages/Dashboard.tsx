@@ -1,12 +1,24 @@
 import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { getAnalytics, getApiErrorMessage, getProductAnalytics, getStats } from '../api'
+import { getAnalytics, getApiErrorMessage, getHealth, getProductAnalytics, getStats } from '../api'
 import { ErrorBanner } from '../adminUi'
 import {
   Area, AreaChart, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts'
-import { Users, CalendarDays, AlertTriangle, TrendingUp, Activity, Footprints, Wifi } from 'lucide-react'
+import {
+  Activity,
+  AlertTriangle,
+  ArrowRight,
+  CalendarDays,
+  CheckCircle,
+  CircleDashed,
+  Footprints,
+  TrendingUp,
+  Users,
+  Wifi,
+  XCircle,
+} from 'lucide-react'
 
 interface Stats {
   users: {
@@ -47,6 +59,20 @@ interface ProductActivityAnalytics {
     period_days: number
     by_hour: { hour: number; label: string; average_active_users: number }[]
     by_weekday: { weekday: number; label: string; average_active_users: number }[]
+  }
+}
+
+interface DashboardHealth {
+  checked_at?: string
+  overall?: {
+    ok: boolean
+    state: 'healthy' | 'degraded' | 'critical'
+    summary: string
+  }
+  infrastructure?: {
+    provider?: string
+    environment?: string
+    services?: { ok: boolean }[]
   }
 }
 
@@ -143,6 +169,13 @@ function hasValues(data: { count: number }[]) {
   return data.some((row) => Number.isFinite(row.count) && row.count > 0)
 }
 
+function formatHealthCheck(value?: string) {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toLocaleString('de-DE')
+}
+
 export default function Dashboard() {
   const { data, isLoading, error: statsError } = useQuery<Stats>({
     queryKey: ['stats'],
@@ -162,6 +195,15 @@ export default function Dashboard() {
     queryKey: ['product-analytics', 90],
     queryFn: () => getProductAnalytics(90),
     staleTime: 10 * 60_000,
+  })
+  const {
+    data: health,
+    isLoading: isHealthLoading,
+    error: healthError,
+  } = useQuery<DashboardHealth>({
+    queryKey: ['health'],
+    queryFn: getHealth,
+    refetchInterval: 30_000,
   })
 
   if (isLoading) return <div className="p-8 text-gray-400">Lade Statistiken...</div>
@@ -217,12 +259,72 @@ export default function Dashboard() {
   const analyticsStateMessage = analyticsError
     ? 'Analytics-Daten konnten nicht geladen werden.'
     : 'Für diesen Zeitraum liegen noch keine Daten vor.'
+  const healthState = health?.overall?.state ?? 'degraded'
+  const healthIsCritical = healthState === 'critical'
+  const healthIsOk = healthState === 'healthy'
+  const healthServices = health?.infrastructure?.services ?? []
+  const healthyServiceCount = healthServices.filter((service) => service.ok).length
+  const healthCheckedAt = formatHealthCheck(health?.checked_at)
 
   return (
     <div className="p-8">
       <h2 className="text-xl font-bold text-gray-900 mb-6">Dashboard</h2>
 
       <ErrorBanner message={analyticsError ? getApiErrorMessage(analyticsError) : ''} />
+
+      <Link
+        to="/health"
+        className={`group mb-6 flex flex-col gap-4 rounded-xl border p-4 transition-colors sm:flex-row sm:items-center sm:justify-between ${
+          healthError
+            ? 'border-red-200 bg-red-50 hover:bg-red-100/70'
+            : isHealthLoading || !health
+              ? 'border-gray-200 bg-white hover:bg-gray-50'
+              : healthIsCritical
+                ? 'border-red-200 bg-red-50 hover:bg-red-100/70'
+                : healthIsOk
+                  ? 'border-green-200 bg-green-50 hover:bg-green-100/70'
+                  : 'border-amber-200 bg-amber-50 hover:bg-amber-100/70'
+        }`}
+      >
+        <div className="flex min-w-0 items-start gap-3">
+          {healthError || healthIsCritical ? (
+            <XCircle size={22} className="mt-0.5 shrink-0 text-red-600" />
+          ) : isHealthLoading || !health ? (
+            <CircleDashed size={22} className="mt-0.5 shrink-0 animate-spin text-gray-400" />
+          ) : healthIsOk ? (
+            <CheckCircle size={22} className="mt-0.5 shrink-0 text-green-600" />
+          ) : (
+            <CircleDashed size={22} className="mt-0.5 shrink-0 text-amber-600" />
+          )}
+          <div className="min-w-0">
+            <p className="font-semibold text-gray-900">
+              {healthError
+                ? 'Betriebsstatus konnte nicht geladen werden'
+                : isHealthLoading || !health
+                  ? 'Betriebsstatus wird geladen…'
+                  : healthIsCritical
+                    ? 'Ein kritischer Dienst benötigt Aufmerksamkeit'
+                    : healthIsOk
+                      ? 'Alle Kernsysteme laufen'
+                      : 'Betrieb läuft mit Hinweisen'}
+            </p>
+            <p className="mt-0.5 truncate text-sm text-gray-600">
+              {healthError
+                ? getApiErrorMessage(healthError)
+                : health?.overall?.summary ?? 'Server, Datenbanken und Worker werden geprüft.'}
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center justify-between gap-4 pl-8 text-xs text-gray-500 sm:justify-end sm:pl-0">
+          <div className="text-left sm:text-right">
+            {healthServices.length > 0 && (
+              <p className="font-medium text-gray-700">{healthyServiceCount}/{healthServices.length} Services online</p>
+            )}
+            {healthCheckedAt && <p className="mt-0.5">Geprüft: {healthCheckedAt}</p>}
+          </div>
+          <ArrowRight size={17} className="text-gray-400 transition-transform group-hover:translate-x-0.5" />
+        </div>
+      </Link>
 
       <div className="grid grid-cols-2 gap-4 mb-8 lg:grid-cols-4 xl:grid-cols-7">
         <KPI icon={Users} label="Nutzer gesamt" value={data.users.total} sub={`${data.users.active} aktiv · ${data.users.deleted} gelöscht`} color="violet" />
