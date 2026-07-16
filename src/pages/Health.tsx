@@ -14,6 +14,20 @@ interface Health {
       last_result: Record<string, unknown>
       sample: string[]
     }
+    admin_alerts?: {
+      ok: boolean
+      heartbeat_ok: boolean
+      last_seen_at: string | null
+      last_result: Record<string, unknown>
+      active_critical: number
+      active_warnings: number
+      last_email_sent_at: string | null
+      last_push_sent_at: string | null
+      email_configured: boolean
+      pushcut_configured: boolean
+      digest_hours: number[]
+      timezone: string
+    }
   }
 }
 
@@ -44,6 +58,7 @@ const CHECK_LABELS: Record<string, string> = {
   email: 'E-Mail',
   sentry: 'Sentry',
   firebase_analytics: 'Firebase Analytics',
+  admin_alerting: 'Admin-Alarmierung',
 }
 
 function CheckCard({ checkKey, check }: { checkKey: string; check: { ok: boolean; optional?: boolean; detail?: string; backend?: string; sandbox?: boolean } }) {
@@ -182,7 +197,7 @@ export default function HealthPage() {
             </section>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <div className="grid grid-cols-1 gap-6 mb-6 lg:grid-cols-2 xl:grid-cols-3">
             <div className="rounded-xl border border-gray-200 bg-white p-5">
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-gray-700">Safe-Walk-Worker</h3>
@@ -229,6 +244,38 @@ export default function HealthPage() {
                 ))}
               </div>
             </div>
+
+            {health.workers.admin_alerts && <div className="rounded-xl border border-gray-200 bg-white p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-700">Admin-Alarmierung</h3>
+                <Badge className={health.workers.admin_alerts.ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
+                  {health.workers.admin_alerts.ok ? 'Aktiv' : 'Prüfen'}
+                </Badge>
+              </div>
+              <p className="mb-4 text-xs leading-5 text-gray-500">
+                Kritische Zustände werden sofort per Pushcut gemeldet. Eine E-Mail-Zusammenfassung wird um{' '}
+                {health.workers.admin_alerts.digest_hours.map((hour) => `${String(hour).padStart(2, '0')}:00`).join(' und ')} Uhr{' '}
+                ({health.workers.admin_alerts.timezone}) versendet, wenn Handlungsbedarf besteht.
+              </p>
+              <dl className="grid grid-cols-2 gap-4">
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-gray-400">Kritisch / Hinweise</dt>
+                  <dd className="mt-1 text-2xl font-bold text-gray-900">
+                    {health.workers.admin_alerts.active_critical} / {health.workers.admin_alerts.active_warnings}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-gray-400">Kanäle</dt>
+                  <dd className="mt-1 text-sm font-semibold text-gray-900">
+                    E-Mail {health.workers.admin_alerts.email_configured ? '✓' : '–'} · Pushcut {health.workers.admin_alerts.pushcut_configured ? '✓' : '–'}
+                  </dd>
+                </div>
+              </dl>
+              <div className="mt-4 space-y-1 border-t border-gray-100 pt-3 text-xs text-gray-500">
+                <p>Letzte E-Mail: {health.workers.admin_alerts.last_email_sent_at ? new Date(health.workers.admin_alerts.last_email_sent_at).toLocaleString('de-DE') : 'noch keine'}</p>
+                <p>Letzter Pushcut: {health.workers.admin_alerts.last_push_sent_at ? new Date(health.workers.admin_alerts.last_push_sent_at).toLocaleString('de-DE') : 'noch keiner'}</p>
+              </div>
+            </div>}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

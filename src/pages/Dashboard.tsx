@@ -244,8 +244,23 @@ export default function Dashboard() {
                 <BarChart data={activityByHour} margin={{ top: 2, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke={GRID_COLOR} strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: AXIS_COLOR, fontSize: 11 }} tickMargin={10} interval={2} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: AXIS_COLOR, fontSize: 11 }} width={36} />
-                  <Tooltip separator=": " contentStyle={TOOLTIP_STYLE} cursor={{ fill: '#f8fafc' }} labelStyle={{ color: '#64748b', marginBottom: 4 }} />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: AXIS_COLOR, fontSize: 11 }}
+                    tickFormatter={(value) => Number(value).toLocaleString('de-DE', { maximumFractionDigits: 3 })}
+                    width={40}
+                  />
+                  <Tooltip
+                    formatter={(value) => [
+                      `${Number(value).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Nutzer pro Stunde`,
+                      'Durchschnitt',
+                    ]}
+                    separator=": "
+                    contentStyle={TOOLTIP_STYLE}
+                    cursor={{ fill: '#f8fafc' }}
+                    labelStyle={{ color: '#64748b', marginBottom: 4 }}
+                  />
                   <Bar name="Ø aktive Nutzer" dataKey="count" fill="#7c3aed" radius={[5, 5, 0, 0]} maxBarSize={22} />
                 </BarChart>
               </ResponsiveContainer>
