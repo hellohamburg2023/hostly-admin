@@ -175,10 +175,10 @@ export interface AdminPushNotificationDeviceResult {
 }
 
 export const previewPushNotification = (data: AdminPushNotificationPayload) =>
-  api.post<AdminPushNotificationResult>('/api/admin/push-notifications/preview/', data).then((r) => r.data)
+  api.post<AdminPushNotificationResult>('/api/admin/message-preview/', data).then((r) => r.data)
 
 export const sendPushNotification = (data: AdminPushNotificationPayload) =>
-  api.post<AdminPushNotificationResult>('/api/admin/push-notifications/send/', data).then((r) => r.data)
+  api.post<AdminPushNotificationResult>('/api/admin/message-send/', data).then((r) => r.data)
 
 export const getAnalytics = () => api.get('/api/admin/analytics/').then((r) => r.data)
 

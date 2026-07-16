@@ -8,6 +8,10 @@ const port = Number(process.env.PORT || 3000)
 const distDirectory = path.resolve('dist')
 const apiTarget = new URL(process.env.API_PROXY_TARGET || 'https://app.meet-hostly.com')
 const apiHostHeader = process.env.API_PROXY_HOST || 'app.meet-hostly.com'
+const apiPathRewrites = new Map([
+  ['/api/admin/message-preview/', '/api/admin/push-notifications/preview/'],
+  ['/api/admin/message-send/', '/api/admin/push-notifications/send/'],
+])
 
 const contentTypes = {
   '.css': 'text/css; charset=utf-8',
@@ -22,6 +26,7 @@ const contentTypes = {
 
 function proxyApiRequest(request, response) {
   const target = new URL(request.url, apiTarget)
+  const upstreamPath = apiPathRewrites.get(target.pathname) || target.pathname
   const headers = {
     host: apiHostHeader,
     'user-agent': request.headers['user-agent'] || 'Hostly-Admin-Proxy/1.0',
@@ -37,7 +42,7 @@ function proxyApiRequest(request, response) {
     hostname: apiTarget.hostname,
     port: apiTarget.port || (apiTarget.protocol === 'http:' ? 80 : 443),
     method: request.method,
-    path: `${target.pathname}${target.search}`,
+    path: `${upstreamPath}${target.search}`,
     headers,
   }, (upstreamResponse) => {
     const responseHeaders = { ...upstreamResponse.headers }
