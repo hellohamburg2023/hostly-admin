@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -7,7 +7,10 @@ import {
 } from '../api'
 import { formatDate } from '../adminFormat'
 import { Badge, EmptyState, ErrorBanner, Pagination } from '../adminUi'
-import { Check, Lightbulb, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import {
+  Check, ChevronDown, FileText, Lightbulb, MapPin, Pencil, Plus, Search,
+  Settings2, Sparkles, Trash2, UserRound, X,
+} from 'lucide-react'
 
 interface Category {
   id: number
@@ -94,6 +97,7 @@ export default function IdeasPage() {
   const [adding, setAdding] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
   const [form, setForm] = useState<IdeaForm>(BLANK_FORM)
+  const titleInputRef = useRef<HTMLInputElement>(null)
   const qc = useQueryClient()
 
   const params: Record<string, string> = {}
@@ -133,15 +137,16 @@ export default function IdeasPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ideas'] }),
   })
 
-  const errorMessage = error
+  const pageErrorMessage = error
     ? getApiErrorMessage(error)
-    : createMut.error
-      ? getApiErrorMessage(createMut.error)
-      : updateMut.error
-        ? getApiErrorMessage(updateMut.error)
-        : deleteMut.error
-          ? getApiErrorMessage(deleteMut.error)
-          : ''
+    : deleteMut.error
+      ? getApiErrorMessage(deleteMut.error)
+      : ''
+  const formErrorMessage = createMut.error
+    ? getApiErrorMessage(createMut.error)
+    : updateMut.error
+      ? getApiErrorMessage(updateMut.error)
+      : ''
 
   const setFilter = (setter: (value: string) => void, value: string) => {
     setter(value)
@@ -158,30 +163,70 @@ export default function IdeasPage() {
   }
 
   const saveForm = () => {
+    if (!form.title.trim() || !form.category_id) return
     const payload = payloadFromForm(form)
     if (editId) updateMut.mutate({ id: editId, payload })
     else createMut.mutate(payload)
   }
 
   const startAdd = () => {
+    createMut.reset()
+    updateMut.reset()
     setAdding(true)
     setEditId(null)
     setForm({ ...BLANK_FORM, is_template: kind !== 'ideas' })
   }
 
   const startEdit = (idea: Idea) => {
+    createMut.reset()
+    updateMut.reset()
     setAdding(false)
     setEditId(idea.id)
     setForm(formFromIdea(idea))
   }
 
   const cancelForm = () => {
+    if (createMut.isPending || updateMut.isPending) return
+    createMut.reset()
+    updateMut.reset()
     setAdding(false)
     setEditId(null)
     setForm(BLANK_FORM)
   }
 
   const showForm = adding || editId !== null
+  const isSaving = createMut.isPending || updateMut.isPending
+  const canSave = Boolean(form.title.trim() && form.category_id) && !isSaving
+  const formTitle = editId
+    ? `${form.is_template ? 'Vorlage' : 'Nutzer-Idee'} bearbeiten`
+    : `${form.is_template ? 'Neue Vorlage' : 'Neue Nutzer-Idee'} erstellen`
+  const saveLabel = editId
+    ? 'Änderungen speichern'
+    : form.is_template
+      ? 'Vorlage erstellen'
+      : 'Idee erstellen'
+
+  useEffect(() => {
+    if (!showForm) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.setTimeout(() => titleInputRef.current?.focus(), 0)
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isSaving) {
+        setAdding(false)
+        setEditId(null)
+        setForm(BLANK_FORM)
+      }
+    }
+    window.addEventListener('keydown', closeOnEscape)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [showForm, isSaving])
 
   return (
     <div className="p-8">
@@ -200,7 +245,7 @@ export default function IdeasPage() {
         </button>
       </div>
 
-      <ErrorBanner message={errorMessage} />
+      <ErrorBanner message={pageErrorMessage} />
 
       <div className="admin-filters flex flex-wrap gap-3 mb-5">
         <div className="relative flex-1 min-w-64 max-w-sm">
@@ -222,59 +267,6 @@ export default function IdeasPage() {
           <option value="ideas">Nutzer-Ideen</option>
         </select>
       </div>
-
-      {showForm && (
-        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-gray-700">{editId ? 'Vorlage/Idee bearbeiten' : 'Neue Vorlage/Idee'}</h3>
-            <button onClick={cancelForm} className="rounded p-1.5 text-gray-400 hover:bg-gray-100"><X size={16} /></button>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <input value={form.title} onChange={(event) => setForm((v) => ({ ...v, title: event.target.value }))} placeholder="Titel" className="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-            <input value={form.subtitle} onChange={(event) => setForm((v) => ({ ...v, subtitle: event.target.value }))} placeholder="Untertitel wie in der App" className="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-            <input value={form.city} onChange={(event) => setForm((v) => ({ ...v, city: event.target.value }))} placeholder="Stadt, optional für Vorlage" className="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-            <select value={form.category_id} onChange={(event) => setForm((v) => ({ ...v, category_id: event.target.value }))} className="border border-gray-300 rounded-lg px-3 py-2 text-sm">
-              <option value="">Kategorie wählen</option>
-              {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-            </select>
-            <input value={form.system_image} onChange={(event) => setForm((v) => ({ ...v, system_image: event.target.value }))} placeholder="SF Symbol/Icon, z.B. tree" className="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-            <input type="number" value={form.sort_order} onChange={(event) => setForm((v) => ({ ...v, sort_order: Number(event.target.value) }))} placeholder="Reihenfolge" className="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-            <textarea value={form.description} onChange={(event) => setForm((v) => ({ ...v, description: event.target.value }))} placeholder="Beschreibung/Vorlagentext aus der App" className="h-24 rounded-lg border border-gray-300 px-3 py-2 text-sm lg:col-span-2" />
-            <textarea value={form.rules} onChange={(event) => setForm((v) => ({ ...v, rules: event.target.value }))} placeholder="Regeln/Sicherheitshinweise" className="h-20 rounded-lg border border-gray-300 px-3 py-2 text-sm lg:col-span-2" />
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <label className="inline-flex items-center gap-2 text-sm text-gray-600">
-              <input type="checkbox" checked={form.is_template} onChange={(event) => setForm((v) => ({ ...v, is_template: event.target.checked }))} />
-              Als App-Vorlage markieren
-            </label>
-          </div>
-          <div className="mt-4">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Interessen</p>
-            <div className="flex flex-wrap gap-2">
-              {interests.map((interest) => (
-                <button
-                  key={interest.id}
-                  type="button"
-                  onClick={() => toggleInterest(interest.id)}
-                  className={`rounded-full px-3 py-1 text-xs font-medium ${
-                    form.interests.includes(interest.id)
-                      ? 'bg-violet-100 text-violet-700'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {interest.name}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="mt-5 flex justify-end gap-2">
-            <button onClick={cancelForm} className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50">Abbrechen</button>
-            <button onClick={saveForm} disabled={!form.title || !form.category_id} className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50">
-              <Check size={14} /> Speichern
-            </button>
-          </div>
-        </div>
-      )}
 
       {isLoading ? (
         <div className="text-gray-400">Laden...</div>
@@ -327,6 +319,294 @@ export default function IdeasPage() {
         </div>
       )}
       <Pagination data={page} onCursor={setCursor} />
+
+      {showForm && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-gray-950/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-5"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) cancelForm()
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="idea-form-title"
+            className="flex max-h-[100dvh] w-full flex-col overflow-hidden bg-white shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:max-w-3xl sm:rounded-2xl"
+          >
+            <div className="flex shrink-0 items-start justify-between border-b border-gray-100 px-5 py-4 sm:px-7 sm:py-5">
+              <div className="flex min-w-0 gap-3">
+                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
+                  {form.is_template ? <FileText size={19} /> : <Lightbulb size={19} />}
+                </div>
+                <div>
+                  <h3 id="idea-form-title" className="text-lg font-semibold text-gray-900">{formTitle}</h3>
+                  <p className="mt-0.5 text-sm text-gray-500">
+                    {editId
+                      ? 'Passe die Inhalte und Zuordnung an.'
+                      : form.is_template
+                        ? 'Erstelle eine wiederverwendbare Event-Idee für die App.'
+                        : 'Erfasse eine konkrete Idee aus der Community.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={cancelForm}
+                disabled={isSaving}
+                aria-label="Dialog schließen"
+                className="-mr-1 rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <X size={19} />
+              </button>
+            </div>
+
+            <form
+              className="flex min-h-0 flex-1 flex-col"
+              onSubmit={(event) => {
+                event.preventDefault()
+                saveForm()
+              }}
+            >
+              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-7 sm:py-6">
+                <ErrorBanner message={formErrorMessage} />
+
+                <fieldset>
+                  <legend className="text-sm font-semibold text-gray-900">Was möchtest du erstellen?</legend>
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      aria-pressed={form.is_template}
+                      onClick={() => setForm((value) => ({ ...value, is_template: true }))}
+                      className={`flex items-start gap-3 rounded-xl border p-3.5 text-left transition-colors ${
+                        form.is_template
+                          ? 'border-violet-500 bg-violet-50 ring-1 ring-violet-500'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Sparkles size={18} className={form.is_template ? 'mt-0.5 text-violet-700' : 'mt-0.5 text-gray-400'} />
+                      <span>
+                        <span className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                          App-Vorlage
+                          {form.is_template && <Check size={15} className="text-violet-700" />}
+                        </span>
+                        <span className="mt-0.5 block text-xs leading-5 text-gray-500">Wiederverwendbar und für alle Städte geeignet</span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={!form.is_template}
+                      onClick={() => setForm((value) => ({ ...value, is_template: false }))}
+                      className={`flex items-start gap-3 rounded-xl border p-3.5 text-left transition-colors ${
+                        !form.is_template
+                          ? 'border-violet-500 bg-violet-50 ring-1 ring-violet-500'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      <UserRound size={18} className={!form.is_template ? 'mt-0.5 text-violet-700' : 'mt-0.5 text-gray-400'} />
+                      <span>
+                        <span className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                          Nutzer-Idee
+                          {!form.is_template && <Check size={15} className="text-violet-700" />}
+                        </span>
+                        <span className="mt-0.5 block text-xs leading-5 text-gray-500">Konkreter Vorschlag aus der Community</span>
+                      </span>
+                    </button>
+                  </div>
+                </fieldset>
+
+                <div className="my-6 border-t border-gray-100" />
+
+                <section aria-labelledby="idea-basics-heading">
+                  <div className="mb-3">
+                    <h4 id="idea-basics-heading" className="text-sm font-semibold text-gray-900">Basisdaten</h4>
+                    <p className="mt-0.5 text-xs text-gray-500">Diese Angaben helfen Nutzern, die Idee schnell einzuordnen.</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <label className="sm:col-span-2">
+                      <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                        Titel <span className="text-red-500">*</span>
+                      </span>
+                      <input
+                        ref={titleInputRef}
+                        value={form.title}
+                        onChange={(event) => setForm((value) => ({ ...value, title: event.target.value }))}
+                        placeholder="z. B. Gemeinsam töpfern"
+                        maxLength={120}
+                        required
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                      />
+                    </label>
+                    <label className="sm:col-span-2">
+                      <span className="mb-1.5 block text-sm font-medium text-gray-700">Kurzer Untertitel</span>
+                      <input
+                        value={form.subtitle}
+                        onChange={(event) => setForm((value) => ({ ...value, subtitle: event.target.value }))}
+                        placeholder="Ein kurzer Satz, der in der App neugierig macht"
+                        maxLength={180}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                      />
+                    </label>
+                    <label>
+                      <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                        Kategorie <span className="text-red-500">*</span>
+                      </span>
+                      <select
+                        value={form.category_id}
+                        onChange={(event) => setForm((value) => ({ ...value, category_id: event.target.value }))}
+                        required
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                      >
+                        <option value="">Kategorie auswählen</option>
+                        {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                      </select>
+                    </label>
+                    <label>
+                      <span className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-gray-700">
+                        <MapPin size={14} className="text-gray-400" /> Stadt
+                        <span className="font-normal text-gray-400">(optional)</span>
+                      </span>
+                      <input
+                        value={form.city}
+                        onChange={(event) => setForm((value) => ({ ...value, city: event.target.value }))}
+                        placeholder={form.is_template ? 'Für alle Städte leer lassen' : 'z. B. Berlin'}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                      />
+                    </label>
+                  </div>
+                </section>
+
+                <div className="my-6 border-t border-gray-100" />
+
+                <section aria-labelledby="idea-content-heading">
+                  <div className="mb-3">
+                    <h4 id="idea-content-heading" className="text-sm font-semibold text-gray-900">Inhalt</h4>
+                    <p className="mt-0.5 text-xs text-gray-500">Beschreibe, was die Teilnehmenden erwartet.</p>
+                  </div>
+                  <div className="space-y-4">
+                    <label>
+                      <span className="mb-1.5 block text-sm font-medium text-gray-700">Beschreibung</span>
+                      <textarea
+                        value={form.description}
+                        onChange={(event) => setForm((value) => ({ ...value, description: event.target.value }))}
+                        placeholder="Worum geht es bei der Idee und wie könnte sie ablaufen?"
+                        className="min-h-28 w-full resize-y rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                      />
+                    </label>
+                    <label>
+                      <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                        Regeln oder Sicherheitshinweise
+                        <span className="ml-1 font-normal text-gray-400">(optional)</span>
+                      </span>
+                      <textarea
+                        value={form.rules}
+                        onChange={(event) => setForm((value) => ({ ...value, rules: event.target.value }))}
+                        placeholder="Was sollten Teilnehmende vorab wissen?"
+                        className="min-h-20 w-full resize-y rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                      />
+                    </label>
+                  </div>
+                </section>
+
+                <div className="my-6 border-t border-gray-100" />
+
+                <section aria-labelledby="idea-interests-heading">
+                  <div className="mb-3 flex items-end justify-between gap-4">
+                    <div>
+                      <h4 id="idea-interests-heading" className="text-sm font-semibold text-gray-900">Passende Interessen</h4>
+                      <p className="mt-0.5 text-xs text-gray-500">Mehrfachauswahl möglich</p>
+                    </div>
+                    {form.interests.length > 0 && (
+                      <span className="shrink-0 text-xs font-medium text-violet-700">
+                        {form.interests.length} ausgewählt
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {interests.map((interest) => {
+                      const selected = form.interests.includes(interest.id)
+                      return (
+                        <button
+                          key={interest.id}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => toggleInterest(interest.id)}
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                            selected
+                              ? 'border-violet-200 bg-violet-100 text-violet-800'
+                              : 'border-transparent bg-gray-100 text-gray-600 hover:border-gray-200 hover:bg-gray-200'
+                          }`}
+                        >
+                          {selected && <Check size={12} />}
+                          {interest.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </section>
+
+                <details className="group mt-6 rounded-xl border border-gray-200 bg-gray-50">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-gray-700 [&::-webkit-details-marker]:hidden">
+                    <span className="flex items-center gap-2"><Settings2 size={15} /> Erweiterte Einstellungen</span>
+                    <ChevronDown size={16} className="text-gray-400 transition-transform group-open:rotate-180" />
+                  </summary>
+                  <div className="grid grid-cols-1 gap-4 border-t border-gray-200 px-4 py-4 sm:grid-cols-2">
+                    <label>
+                      <span className="mb-1.5 block text-sm font-medium text-gray-700">App-Icon</span>
+                      <input
+                        value={form.system_image}
+                        onChange={(event) => setForm((value) => ({ ...value, system_image: event.target.value }))}
+                        placeholder="z. B. lightbulb"
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                      />
+                      <span className="mt-1 block text-xs text-gray-500">Name des verwendeten System-Icons</span>
+                    </label>
+                    <label>
+                      <span className="mb-1.5 block text-sm font-medium text-gray-700">Sortierreihenfolge</span>
+                      <input
+                        type="number"
+                        value={form.sort_order}
+                        onChange={(event) => setForm((value) => ({ ...value, sort_order: Number(event.target.value) }))}
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                      />
+                      <span className="mt-1 block text-xs text-gray-500">Kleinere Zahlen erscheinen zuerst</span>
+                    </label>
+                  </div>
+                </details>
+              </div>
+
+              <div className="flex shrink-0 items-center justify-between gap-4 border-t border-gray-100 bg-white px-5 py-4 sm:px-7">
+                <p className="hidden text-xs text-gray-400 sm:block"><span className="text-red-500">*</span> Pflichtfelder</p>
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={cancelForm}
+                    disabled={isSaving}
+                    className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!canSave}
+                    className="inline-flex min-w-36 items-center justify-center gap-1.5 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-violet-300"
+                  >
+                    {isSaving ? (
+                      <>
+                        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                        Wird gespeichert …
+                      </>
+                    ) : (
+                      <>
+                        <Check size={15} /> {saveLabel}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
