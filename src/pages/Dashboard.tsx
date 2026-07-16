@@ -255,25 +255,49 @@ export default function Dashboard() {
           )}
         </ChartCard>
 
-        <ChartCard title="Online nach Wochentag" description="Ø täglich aktive Nutzer · Firebase/GA4 mit Analytics-Einwilligung" meta="90 Tage">
+        <ChartCard
+          title="Ø aktive Nutzer nach Wochentag"
+          description="Tagesdurchschnitt je Montag, Dienstag usw. · nur mit Analytics-Einwilligung"
+          meta="90 Tage"
+        >
           {isProductActivityLoading ? (
             <ChartState>Firebase-Aktivität wird geladen…</ChartState>
           ) : hasValues(activityByWeekday) ? (
-            <div className="h-60 w-full" role="img" aria-label="Balkendiagramm der durchschnittlich aktiven Nutzer nach Wochentag">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={activityByWeekday} margin={{ top: 2, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid stroke={GRID_COLOR} strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: AXIS_COLOR, fontSize: 11 }} tickMargin={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: AXIS_COLOR, fontSize: 11 }} width={36} />
-                  <Tooltip separator=": " contentStyle={TOOLTIP_STYLE} cursor={{ fill: '#f8fafc' }} labelStyle={{ color: '#64748b', marginBottom: 4 }} />
-                  <Bar name="Ø aktive Nutzer" dataKey="count" radius={[5, 5, 0, 0]} maxBarSize={42}>
-                    {activityByWeekday.map((entry) => (
-                      <Cell key={entry.weekday} fill={entry.count === busiestWeekday ? '#7c3aed' : '#c4b5fd'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <>
+              <div className="h-60 w-full" role="img" aria-label="Balkendiagramm des Tagesdurchschnitts aktiver Nutzer für jeden Wochentag">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={activityByWeekday} margin={{ top: 2, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid stroke={GRID_COLOR} strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: AXIS_COLOR, fontSize: 11 }} tickMargin={10} />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: AXIS_COLOR, fontSize: 11 }}
+                      tickFormatter={(value) => Number(value).toLocaleString('de-DE', { maximumFractionDigits: 1 })}
+                      width={36}
+                    />
+                    <Tooltip
+                      formatter={(value) => [
+                        `${Number(value).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Nutzer pro Tag`,
+                        'Durchschnitt',
+                      ]}
+                      separator=": "
+                      contentStyle={TOOLTIP_STYLE}
+                      cursor={{ fill: '#f8fafc' }}
+                      labelStyle={{ color: '#64748b', marginBottom: 4 }}
+                    />
+                    <Bar name="Ø aktive Nutzer pro Tag" dataKey="count" radius={[5, 5, 0, 0]} maxBarSize={42}>
+                      {activityByWeekday.map((entry) => (
+                        <Cell key={entry.weekday} fill={entry.count === busiestWeekday ? '#7c3aed' : '#c4b5fd'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <p className="mt-3 text-xs text-gray-400">
+                Beispiel: 0,3 ist ein Mittelwert über alle entsprechenden Wochentage im Zeitraum – keine Teilperson.
+              </p>
+            </>
           ) : (
             <ChartState>{activityPatternState}</ChartState>
           )}
