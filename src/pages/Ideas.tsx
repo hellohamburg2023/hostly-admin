@@ -605,50 +605,50 @@ export default function IdeasPage() {
                     <span className="flex items-center gap-2"><Settings2 size={15} /> Erweiterte Einstellungen</span>
                     <ChevronDown size={16} className="text-gray-400 transition-transform group-open:rotate-180" />
                   </summary>
-                  <div className="grid grid-cols-1 gap-4 border-t border-gray-200 px-4 py-4 sm:grid-cols-2">
-                    <label>
-                      <span className="mb-1.5 block text-sm font-medium text-gray-700">Icon in der App</span>
+                  <div className="flex flex-col gap-3 border-t border-gray-200 px-4 py-4 md:flex-row md:items-center md:gap-6">
+                    <label className="flex min-w-0 flex-1 items-center gap-3">
+                      <span className="shrink-0 text-sm font-medium text-gray-700">Icon in der App</span>
                       <SystemIconSelect
                         value={form.system_image}
                         onChange={(system_image) => setForm((value) => ({ ...value, system_image }))}
+                        className="min-w-0 flex-1"
                       />
-                      <span className="mt-1 block text-xs text-gray-500">Wähle das Motiv aus, das Nutzer in der App sehen.</span>
                     </label>
-                    <label>
-                      <span className="mb-1.5 block text-sm font-medium text-gray-700">Position in der Liste</span>
-                      <select
-                        value={form.sort_order}
-                        disabled={!sortOrdersReady}
-                        onChange={(event) => setForm((value) => ({ ...value, sort_order: Number(event.target.value) }))}
-                        className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100 disabled:cursor-not-allowed disabled:bg-gray-100 ${
-                          sortOrderConflict ? 'border-red-400' : 'border-gray-300'
-                        }`}
-                      >
-                        {!sortOrdersReady && <option value={0}>Positionen werden geladen …</option>}
-                        {sortOrdersReady && invalidSortOrder && (
-                          <option value={0} disabled>Bitte eine freie Position auswählen</option>
-                        )}
-                        {sortOrderOptions.map((position) => {
-                          const isOccupied = occupiedSortOrders.has(position)
-                          return (
-                            <option key={position} value={position} disabled={isOccupied}>
-                              Position {position}
-                              {position === 1 ? ' — ganz oben' : ''}
-                              {position === nextSortOrder ? ' — am Ende' : ''}
-                              {isOccupied ? ' — bereits belegt' : ''}
-                            </option>
-                          )
-                        })}
-                      </select>
+                    <label className="min-w-0 flex-1">
+                      <span className="flex items-center gap-3">
+                        <span className="shrink-0 text-sm font-medium text-gray-700">Position in der Liste</span>
+                        <select
+                          value={form.sort_order}
+                          disabled={!sortOrdersReady}
+                          onChange={(event) => setForm((value) => ({ ...value, sort_order: Number(event.target.value) }))}
+                          className={`min-w-0 flex-1 rounded-lg border bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100 disabled:cursor-not-allowed disabled:bg-gray-100 ${
+                            sortOrderConflict ? 'border-red-400' : 'border-gray-300'
+                          }`}
+                        >
+                          {!sortOrdersReady && <option value={0}>Positionen werden geladen …</option>}
+                          {sortOrdersReady && invalidSortOrder && (
+                            <option value={0} disabled>Bitte eine freie Position auswählen</option>
+                          )}
+                          {sortOrderOptions.map((position) => {
+                            const isOccupied = occupiedSortOrders.has(position)
+                            return (
+                              <option key={position} value={position} disabled={isOccupied}>
+                                Position {position}
+                                {position === 1 ? ' — ganz oben' : ''}
+                                {position === nextSortOrder ? ' — am Ende' : ''}
+                                {isOccupied ? ' — bereits belegt' : ''}
+                              </option>
+                            )
+                          })}
+                        </select>
+                      </span>
                       {sortOrdersError ? (
-                        <span className="mt-1 block text-xs text-red-600">Die verfügbaren Positionen konnten nicht geladen werden.</span>
+                        <span className="mt-1 block text-right text-xs text-red-600">Die verfügbaren Positionen konnten nicht geladen werden.</span>
                       ) : invalidSortOrder ? (
-                        <span className="mt-1 block text-xs text-red-600">Bitte wähle eine freie Position aus.</span>
+                        <span className="mt-1 block text-right text-xs text-red-600">Bitte wähle eine freie Position aus.</span>
                       ) : sortOrderConflict ? (
-                        <span className="mt-1 block text-xs text-red-600">Diese Position ist bereits belegt. Bitte wähle eine freie Position.</span>
-                      ) : (
-                        <span className="mt-1 block text-xs text-gray-500">Belegte Positionen können nicht ausgewählt werden.</span>
-                      )}
+                        <span className="mt-1 block text-right text-xs text-red-600">Diese Position ist bereits belegt. Bitte wähle eine freie Position.</span>
+                      ) : null}
                     </label>
                   </div>
                 </details>
