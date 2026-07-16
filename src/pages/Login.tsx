@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { LoaderCircle } from 'lucide-react'
 import { useAuth } from '../useAuth'
 import { getApiErrorMessage, getAppleLoginConfig } from '../api'
 import { BrandLogo } from '../BrandLogo'
@@ -256,8 +257,13 @@ export default function Login() {
                 aria-busy={appleLoading}
                 className="flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-black text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-70"
               >
-                {appleLoading || !appleReady ? (
-                  'Apple Anmeldung...'
+                {appleLoading ? (
+                  <span className="flex items-center gap-2" role="status">
+                    <LoaderCircle size={17} className="animate-spin" aria-hidden="true" />
+                    Apple Anmeldung...
+                  </span>
+                ) : !appleReady ? (
+                  'Apple Login wird vorbereitet...'
                 ) : (
                   <img src={APPLE_SIGN_IN_BUTTON_URL} alt="" className="h-11 w-full object-fill" />
                 )}
