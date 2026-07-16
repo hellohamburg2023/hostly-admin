@@ -25,6 +25,7 @@ function proxyApiRequest(request, response) {
   const headers = {
     host: apiHostHeader,
     'user-agent': request.headers['user-agent'] || 'Hostly-Admin-Proxy/1.0',
+    'x-forwarded-proto': 'https',
   }
   for (const name of ['accept', 'accept-language', 'authorization', 'content-length', 'content-type']) {
     if (request.headers[name]) headers[name] = request.headers[name]
