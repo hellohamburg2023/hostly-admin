@@ -3,6 +3,23 @@
 *, *::before, *::after { box-sizing: border-box; }
 body { margin: 0; font-family: system-ui, sans-serif; background: #f8f9fa; }
 
+@keyframes login-progress {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(360%); }
+}
+
+.login-progress-bar {
+  animation: login-progress 1.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-progress-bar {
+    animation: none;
+    transform: none;
+    width: 100%;
+  }
+}
+
 /* Shared responsive behavior for all authenticated admin views. */
 .admin-table {
   -webkit-overflow-scrolling: touch;

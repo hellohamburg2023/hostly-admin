@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { LoaderCircle } from 'lucide-react'
+import { AlertCircle, LoaderCircle, LockKeyhole, Mail } from 'lucide-react'
 import { useAuth } from '../useAuth'
 import { getApiErrorMessage, getAppleLoginConfig } from '../api'
 import { BrandLogo } from '../BrandLogo'
 
-const APPLE_SIGN_IN_BUTTON_URL = 'https://appleid.cdn-apple.com/appleid/button?height=44&width=336&color=black&border_radius=8&border=true&type=sign-in&locale=de_DE'
+const APPLE_SIGN_IN_BUTTON_URL = 'https://appleid.cdn-apple.com/appleid/button?height=44&width=336&color=black&border_radius=8&border=true&type=sign-in&locale=de_DE&scale=3'
+const APPLE_CHALLENGE_REFRESH_MS = 5 * 60 * 1000
 
 interface AppleLoginConfig {
   enabled: boolean
@@ -94,8 +95,6 @@ function getAppleAuthorizationErrorMessage(error: unknown) {
 export default function Login() {
   const { user, signIn, signInWithApple } = useAuth()
   const navigate = useNavigate()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [appleConfig, setAppleConfig] = useState<AppleLoginConfig | null>(null)
@@ -131,21 +130,40 @@ export default function Login() {
 
   useEffect(() => {
     let cancelled = false
-    prepareAppleLogin().catch(() => {
-      if (!cancelled) {
-        setAppleReady(false)
-        setAppleConfig({ enabled: false, client_id: '', redirect_uri: '', reason: 'Apple-Konfiguration konnte nicht geladen werden.' })
-      }
-    })
-    return () => { cancelled = true }
+    const refreshAppleChallenge = () => {
+      prepareAppleLogin().catch(() => {
+        if (!cancelled) {
+          setAppleReady(false)
+          setAppleConfig({ enabled: false, client_id: '', redirect_uri: '', reason: 'Apple-Konfiguration konnte nicht geladen werden.' })
+        }
+      })
+    }
+    refreshAppleChallenge()
+    // Apple must open synchronously from the click handler, so obtain a fresh
+    // one-time challenge in the background before its ten-minute TTL expires.
+    const refreshTimer = window.setInterval(refreshAppleChallenge, APPLE_CHALLENGE_REFRESH_MS)
+    return () => {
+      cancelled = true
+      window.clearInterval(refreshTimer)
+    }
   }, [prepareAppleLogin])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    // Read the native controls directly. Safari can display iCloud Keychain
+    // values while FormData still treats the controls as empty.
+    const emailInput = e.currentTarget.elements.namedItem('email') as HTMLInputElement | null
+    const passwordInput = e.currentTarget.elements.namedItem('password') as HTMLInputElement | null
+    const submittedEmail = (emailInput?.value || '').trim()
+    const submittedPassword = passwordInput?.value || ''
     setError('')
+    if (!submittedEmail || !submittedPassword) {
+      setError('Bitte E-Mail und Passwort eingeben.')
+      return
+    }
     setLoading(true)
     try {
-      await signIn(email, password)
+      await signIn(submittedEmail, submittedPassword)
       navigate('/')
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, 'Login fehlgeschlagen'))
@@ -196,90 +214,122 @@ export default function Login() {
     }
   }
 
+  const appleDisabledReason = appleConfig && !appleConfig.enabled
+    ? appleConfig.reason || 'Apple Login ist aktuell nicht verfügbar.'
+    : ''
+
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="mb-4 flex justify-center">
-            <BrandLogo size="lg" />
+    <main className="flex min-h-dvh items-center justify-center bg-gray-50 px-4 py-8">
+      <section className="w-full max-w-[400px]" aria-labelledby="login-heading">
+        <div className="mb-5 flex items-center gap-3">
+          <BrandLogo size="md" />
+          <div>
+            <p className="text-xs font-semibold uppercase text-gray-400">Hostly</p>
+            <h1 id="login-heading" className="text-xl font-semibold text-gray-950">Admin anmelden</h1>
           </div>
-          <h1 className="text-2xl font-bold text-violet-600">hostly admin</h1>
-          <p className="text-sm text-gray-500 mt-1">Melde dich mit deinem Superuser-Konto an</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-4">
+        <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="mb-5">
+            <p className="text-sm font-medium text-gray-950">Superuser-Zugang</p>
+            <p className="mt-1 text-sm text-gray-500">Mit E-Mail und Passwort oder mit Apple anmelden.</p>
+          </div>
+
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-2">{error}</div>
+            <div className="mb-4 flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+              <AlertCircle size={17} className="mt-0.5 shrink-0" aria-hidden="true" />
+              <span>{error}</span>
+            </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">E-Mail</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoFocus
-                autoComplete="email"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
-              />
+              <label htmlFor="admin-email" className="mb-1.5 block text-sm font-medium text-gray-700">E-Mail</label>
+              <div className="relative">
+                <Mail size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+                <input
+                  id="admin-email"
+                  type="email"
+                  name="email"
+                  required
+                  autoFocus
+                  autoComplete="email"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  disabled={loading}
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-white pl-9 pr-3 text-sm text-gray-950 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100 disabled:cursor-wait disabled:bg-gray-50"
+                />
+              </div>
             </div>
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Passwort</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
-              />
+              <label htmlFor="admin-password" className="mb-1.5 block text-sm font-medium text-gray-700">Passwort</label>
+              <div className="relative">
+                <LockKeyhole size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+                <input
+                  id="admin-password"
+                  type="password"
+                  name="password"
+                  required
+                  autoComplete="current-password"
+                  disabled={loading}
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-white pl-9 pr-3 text-sm text-gray-950 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100 disabled:cursor-wait disabled:bg-gray-50"
+                />
+              </div>
             </div>
+
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white font-medium py-2 rounded-lg text-sm transition-colors"
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-violet-600 text-sm font-semibold text-white transition hover:bg-violet-700 active:scale-[0.99] disabled:cursor-wait disabled:bg-violet-500"
             >
-              {loading ? 'Anmelden...' : 'Anmelden'}
+              {loading && <LoaderCircle size={18} className="animate-spin" aria-hidden="true" />}
+              {loading ? 'Anmeldung läuft...' : 'Anmelden'}
             </button>
           </form>
 
-          {appleConfig?.enabled && (
-            <>
-              <div className="flex items-center gap-3">
-                <div className="h-px flex-1 bg-gray-200" />
-                <span className="text-xs text-gray-400">oder</span>
-                <div className="h-px flex-1 bg-gray-200" />
-              </div>
-              <button
-                type="button"
-                onClick={handleAppleLogin}
-                disabled={appleLoading || !appleReady}
-                aria-label="Mit Apple anmelden"
-                aria-busy={appleLoading}
-                className="flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-black text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-70"
-              >
-                {appleLoading ? (
-                  <span className="flex items-center gap-2" role="status">
-                    <LoaderCircle size={17} className="animate-spin" aria-hidden="true" />
-                    Apple Anmeldung...
-                  </span>
-                ) : !appleReady ? (
-                  'Apple Login wird vorbereitet...'
-                ) : (
-                  <img src={APPLE_SIGN_IN_BUTTON_URL} alt="" className="h-11 w-full object-fill" />
-                )}
-              </button>
-              <p className="text-center text-xs text-gray-400">Auf unterstützten Apple-Geräten bestätigt Apple die Anmeldung mit Face ID oder Touch ID.</p>
-            </>
-          )}
+          <div className="my-4 flex items-center gap-3">
+            <div className="h-px flex-1 bg-gray-200" />
+            <span className="text-xs font-medium text-gray-400">oder</span>
+            <div className="h-px flex-1 bg-gray-200" />
+          </div>
 
-          {appleConfig && !appleConfig.enabled && appleConfig.reason && (
-            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">Apple Login ist noch nicht verfügbar: {appleConfig.reason}</p>
+          <button
+            type="button"
+            onClick={handleAppleLogin}
+            disabled={appleLoading || !appleReady}
+            aria-label="Mit Apple anmelden"
+            aria-busy={appleLoading}
+            className="relative flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-black text-sm font-medium text-white transition-[transform,opacity] duration-150 hover:opacity-90 active:scale-[0.99] disabled:cursor-wait disabled:opacity-80"
+          >
+            {appleLoading ? (
+              <>
+                <span className="flex items-center justify-center gap-2" role="status" aria-live="polite">
+                  <LoaderCircle size={18} className="animate-spin" aria-hidden="true" />
+                  Apple wird geöffnet...
+                </span>
+                <span className="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-white/20" aria-hidden="true">
+                  <span className="login-progress-bar block h-full w-2/5 rounded-full bg-white" />
+                </span>
+              </>
+            ) : !appleReady ? (
+              <span>{appleDisabledReason ? 'Apple Login nicht verfügbar' : 'Apple Login wird vorbereitet...'}</span>
+            ) : (
+              <img
+                src={APPLE_SIGN_IN_BUTTON_URL}
+                alt=""
+                className="h-11 w-full object-contain"
+              />
+            )}
+          </button>
+
+          {(!appleReady || appleDisabledReason) && (
+            <p className={`mt-2 rounded-lg px-3 py-2 text-xs leading-5 ${appleDisabledReason ? 'bg-amber-50 text-amber-800' : 'bg-gray-50 text-gray-500'}`}>
+              {appleDisabledReason || 'Apple Login wird im Hintergrund vorbereitet.'}
+            </p>
           )}
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   )
 }

@@ -4,12 +4,9 @@ const configuredBaseUrl = import.meta.env.VITE_API_URL?.trim()
 const defaultBaseUrl = import.meta.env.PROD
   ? 'https://app.meet-hostly.com'
   : 'http://localhost:8000'
-const useSameOriginApi = import.meta.env.PROD
-  && typeof window !== 'undefined'
-  && !['localhost', '127.0.0.1'].includes(window.location.hostname)
-const BASE_URL = (useSameOriginApi ? '' : configuredBaseUrl || defaultBaseUrl).replace(/\/+$/, '')
+const BASE_URL = (configuredBaseUrl || defaultBaseUrl).replace(/\/+$/, '')
 
-export const api = axios.create({ baseURL: BASE_URL })
+export const api = axios.create({ baseURL: BASE_URL, timeout: 10_000 })
 
 type RetryConfig = InternalAxiosRequestConfig & { _retry?: boolean }
 
@@ -83,7 +80,7 @@ export const loginWithApple = (identityToken: string, state: string, fullName?: 
     identity_token: identityToken,
     state,
     full_name: fullName || '',
-  }).then((r) => r.data)
+  }, { params: { state } }).then((r) => r.data)
 
 // Admin
 export const getStats = () => api.get('/api/admin/stats/').then((r) => r.data)
@@ -181,10 +178,10 @@ export interface AdminPushNotificationDeviceResult {
 }
 
 export const previewPushNotification = (data: AdminPushNotificationPayload) =>
-  api.post<AdminPushNotificationResult>('/api/admin/message-preview/', data).then((r) => r.data)
+  api.post<AdminPushNotificationResult>('/api/admin/push-notifications/preview/', data).then((r) => r.data)
 
 export const sendPushNotification = (data: AdminPushNotificationPayload) =>
-  api.post<AdminPushNotificationResult>('/api/admin/message-send/', data).then((r) => r.data)
+  api.post<AdminPushNotificationResult>('/api/admin/push-notifications/send/', data).then((r) => r.data)
 
 export const getAnalytics = () => api.get('/api/admin/analytics/').then((r) => r.data)
 

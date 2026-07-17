@@ -1,5 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { Routes, Route } from 'react-router-dom'
+import { LoaderCircle } from 'lucide-react'
+import { BrandLogo } from './BrandLogo'
 import Layout from './Layout'
 import { RequireAuth } from './RequireAuth'
 
@@ -22,9 +24,21 @@ const HealthPage = lazy(() => import('./pages/Health'))
 const AuditLogsPage = lazy(() => import('./pages/AuditLogs'))
 const PushNotificationsPage = lazy(() => import('./pages/PushNotifications'))
 
+function AppLoadingFallback() {
+  return (
+    <div className="flex min-h-dvh items-center justify-center bg-gray-50 px-4 text-gray-500">
+      <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
+        <BrandLogo size="sm" />
+        <LoaderCircle size={18} className="animate-spin text-violet-600" aria-hidden="true" />
+        <span className="text-sm font-medium">Ansicht wird geladen...</span>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   return (
-    <Suspense fallback={<div className="p-8 text-sm text-gray-400">Ansicht wird geladen...</div>}>
+    <Suspense fallback={<AppLoadingFallback />}>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<RequireAuth><Layout /></RequireAuth>}>
