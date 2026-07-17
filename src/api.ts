@@ -4,7 +4,8 @@ const configuredBaseUrl = import.meta.env.VITE_API_URL?.trim()
 const defaultBaseUrl = import.meta.env.PROD
   ? 'https://app.meet-hostly.com'
   : 'http://localhost:8000'
-const BASE_URL = (configuredBaseUrl || defaultBaseUrl).replace(/\/+$/, '')
+const useSameOriginApi = import.meta.env.PROD
+const BASE_URL = (useSameOriginApi ? '' : configuredBaseUrl || defaultBaseUrl).replace(/\/+$/, '')
 
 export const api = axios.create({ baseURL: BASE_URL, timeout: 10_000 })
 
@@ -68,19 +69,97 @@ api.interceptors.response.use(
   }
 )
 
-// Auth
+// Authentication deliberately uses a small, isolated transport. Form encoding
+// matches native browser form submission and avoids Safari/iCloud autofill
+// values being lost in a cross-origin JSON request.
+export class AuthRequestError extends Error {
+  status: number
+  code: string
+
+  constructor(message: string, status = 0, code = '') {
+    super(message)
+    this.name = 'AuthRequestError'
+    this.status = status
+    this.code = code
+  }
+}
+
+export interface AppleLoginPayload {
+  authorizationCode: string
+  identityToken: string
+  state: string
+  fullName?: string
+}
+
+function authUrl(path: string) {
+  return `${BASE_URL}${path}`
+}
+
+async function readAuthResponse<T>(response: Response): Promise<T> {
+  let data: Record<string, unknown> = {}
+  try {
+    data = await response.json() as Record<string, unknown>
+  } catch {
+    data = {}
+  }
+  if (response.ok) return data as T
+  const detail = typeof data.detail === 'string'
+    ? data.detail
+    : 'Die Anmeldung konnte nicht abgeschlossen werden.'
+  throw new AuthRequestError(
+    detail,
+    response.status,
+    typeof data.code === 'string' ? data.code : '',
+  )
+}
+
+async function authFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), 12_000)
+  try {
+    const response = await fetch(authUrl(path), {
+      cache: 'no-store',
+      credentials: 'same-origin',
+      ...init,
+      headers: {
+        Accept: 'application/json',
+        ...init?.headers,
+      },
+      signal: controller.signal,
+    })
+    return await readAuthResponse<T>(response)
+  } catch (error) {
+    if (error instanceof AuthRequestError) throw error
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new AuthRequestError('Die Anmeldung hat zu lange gedauert. Bitte erneut versuchen.')
+    }
+    throw new AuthRequestError('Die Hostly-API ist nicht erreichbar. Bitte prüfe die Verbindung und versuche es erneut.')
+  } finally {
+    window.clearTimeout(timeout)
+  }
+}
+
+function postAuthForm<T>(path: string, values: Record<string, string>) {
+  return authFetch<T>(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+    body: new URLSearchParams(values),
+  })
+}
+
 export const login = (email: string, password: string) =>
-  api.post('/api/admin/login/', { email, password }).then((r) => r.data)
+  postAuthForm<{ access: string; refresh: string }>('/api/admin/login/', { email, password })
 
 export const getAppleLoginConfig = () =>
-  api.get('/api/admin/login/apple/config/').then((r) => r.data)
+  authFetch('/api/admin/login/apple/config/')
 
-export const loginWithApple = (identityToken: string, state: string, fullName?: string) =>
-  api.post('/api/admin/login/apple/', {
-    identity_token: identityToken,
-    state,
-    full_name: fullName || '',
-  }, { params: { state } }).then((r) => r.data)
+export const loginWithApple = (payload: AppleLoginPayload) =>
+  postAuthForm<{ access: string; refresh: string }>('/api/admin/login/apple/', {
+    code: payload.authorizationCode,
+    identity_token: payload.identityToken,
+    state: payload.state,
+    full_name: payload.fullName || '',
+  })
 
 // Admin
 export const getStats = () => api.get('/api/admin/stats/').then((r) => r.data)

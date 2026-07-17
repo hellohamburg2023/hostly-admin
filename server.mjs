@@ -8,6 +8,7 @@ const port = Number(process.env.PORT || 3000)
 const distDirectory = path.resolve('dist')
 const apiTarget = new URL(process.env.API_PROXY_TARGET || 'https://app.meet-hostly.com')
 const apiHostHeader = process.env.API_PROXY_HOST || 'app.meet-hostly.com'
+const maxApiRequestBytes = 32 * 1024 * 1024
 const apiPathRewrites = new Map([
   ['/api/admin/message-preview/', '/api/admin/push-notifications/preview/'],
   ['/api/admin/message-send/', '/api/admin/push-notifications/send/'],
@@ -24,16 +25,38 @@ const contentTypes = {
   '.webmanifest': 'application/manifest+json',
 }
 
-function proxyApiRequest(request, response) {
+async function readRequestBody(request) {
+  const chunks = []
+  let totalBytes = 0
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+    totalBytes += buffer.length
+    if (totalBytes > maxApiRequestBytes) {
+      const error = new Error('API request body is too large')
+      error.statusCode = 413
+      throw error
+    }
+    chunks.push(buffer)
+  }
+  return Buffer.concat(chunks, totalBytes)
+}
+
+async function proxyApiRequest(request, response) {
   const target = new URL(request.url, apiTarget)
   const upstreamPath = apiPathRewrites.get(target.pathname) || target.pathname
+  const requestBody = request.method === 'GET' || request.method === 'HEAD'
+    ? Buffer.alloc(0)
+    : await readRequestBody(request)
   const headers = {
     host: apiHostHeader,
     'user-agent': request.headers['user-agent'] || 'Hostly-Admin-Proxy/1.0',
     'x-forwarded-proto': 'https',
   }
-  for (const name of ['accept', 'accept-language', 'authorization', 'content-length', 'content-type']) {
+  for (const name of ['accept', 'accept-language', 'authorization', 'content-type']) {
     if (request.headers[name]) headers[name] = request.headers[name]
+  }
+  if (requestBody.length || !['GET', 'HEAD'].includes(request.method || '')) {
+    headers['content-length'] = String(requestBody.length)
   }
 
   const upstreamRequest = apiTarget.protocol === 'http:' ? httpRequest : httpsRequest
@@ -62,7 +85,7 @@ function proxyApiRequest(request, response) {
     }))
   })
 
-  request.pipe(upstream)
+  upstream.end(requestBody)
 }
 
 async function resolveStaticFile(urlPath) {
@@ -116,7 +139,17 @@ async function serveFrontend(request, response) {
 
 const server = createServer((request, response) => {
   if (request.url?.startsWith('/api/')) {
-    proxyApiRequest(request, response)
+    proxyApiRequest(request, response).catch((error) => {
+      console.error('API proxy request failed:', error.message)
+      if (!response.headersSent) {
+        response.writeHead(error.statusCode || 502, { 'content-type': 'application/json; charset=utf-8' })
+      }
+      response.end(JSON.stringify({
+        detail: error.statusCode === 413
+          ? 'Die Anfrage ist zu groß.'
+          : 'Die Hostly-API ist vorübergehend nicht erreichbar.',
+      }))
+    })
     return
   }
   serveFrontend(request, response).catch((error) => {

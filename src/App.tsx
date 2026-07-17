@@ -3,9 +3,9 @@ import { Routes, Route } from 'react-router-dom'
 import { LoaderCircle } from 'lucide-react'
 import { BrandLogo } from './BrandLogo'
 import Layout from './Layout'
+import Login from './pages/Login'
 import { RequireAuth } from './RequireAuth'
 
-const Login = lazy(() => import('./pages/Login'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const UsersPage = lazy(() => import('./pages/Users'))
 const VerificationPage = lazy(() => import('./pages/Verification'))
@@ -26,11 +26,11 @@ const PushNotificationsPage = lazy(() => import('./pages/PushNotifications'))
 
 function AppLoadingFallback() {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-gray-50 px-4 text-gray-500">
-      <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
+    <div className="login-page flex min-h-dvh items-center justify-center px-4 text-gray-500">
+      <div className="flex flex-col items-center gap-3">
         <BrandLogo size="sm" />
         <LoaderCircle size={18} className="animate-spin text-violet-600" aria-hidden="true" />
-        <span className="text-sm font-medium">Ansicht wird geladen...</span>
+        <span className="sr-only">Ansicht wird geladen</span>
       </div>
     </div>
   )

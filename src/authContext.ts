@@ -1,4 +1,5 @@
 import { createContext } from 'react'
+import type { AppleLoginPayload } from './api'
 
 export interface AuthUser {
   id: number
@@ -11,7 +12,7 @@ export interface AuthCtx {
   user: AuthUser | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
-  signInWithApple: (identityToken: string, state: string, fullName?: string) => Promise<void>
+  signInWithApple: (payload: AppleLoginPayload) => Promise<void>
   signOut: () => void
 }
 

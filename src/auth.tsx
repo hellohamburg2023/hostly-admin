@@ -1,5 +1,11 @@
 import { useState, useEffect, type ReactNode } from 'react'
-import { login as apiLogin, loginWithApple as apiLoginWithApple, api, clearAuthStorage } from './api'
+import {
+  login as apiLogin,
+  loginWithApple as apiLoginWithApple,
+  api,
+  clearAuthStorage,
+  type AppleLoginPayload,
+} from './api'
 import { AuthContext, type AuthUser } from './authContext'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -51,9 +57,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const signInWithApple = async (identityToken: string, state: string, fullName?: string) => {
+  const signInWithApple = async (payload: AppleLoginPayload) => {
     try {
-      const data = await apiLoginWithApple(identityToken, state, fullName)
+      const data = await apiLoginWithApple(payload)
       localStorage.setItem('access_token', data.access)
       localStorage.setItem('refresh_token', data.refresh)
       await loadAdminUser()
