@@ -12,6 +12,7 @@ import {
   Globe2,
   HardDrive,
   Mail,
+  MessageCircle,
   Radio,
   RefreshCw,
   Server,
@@ -140,6 +141,15 @@ interface Health {
     }
   }
   workers: {
+    chat_notifications?: {
+      ok: boolean
+      heartbeat_ok: boolean
+      last_seen_at: string | null
+      last_result: Record<string, unknown>
+      pending_jobs: number
+      failed_jobs: number
+      queue_lag_seconds: number
+    }
     safe_walk_cron: {
       ok: boolean
       heartbeat_ok: boolean
@@ -353,6 +363,7 @@ export default function HealthPage() {
     void refetchSentry()
   }
   const infrastructure = health?.infrastructure
+  const chatWorker = health?.workers.chat_notifications
   const overallState = health?.overall?.state ?? 'degraded'
   const overallOk = overallState === 'healthy'
   const overallCritical = overallState === 'critical'
@@ -408,9 +419,10 @@ export default function HealthPage() {
       key: 'worker',
       name: 'hostly-worker',
       label: 'Hintergrund-Worker',
-      role: 'Verarbeitet Safe-Walk-Zeitpunkte, Event-Erinnerungen und Betriebsalarme.',
+      role: 'Verarbeitet Chat-Zustellungen, Safe-Walk-Zeitpunkte, Event-Erinnerungen und Betriebsalarme.',
       ok: Boolean(
-        health.workers.safe_walk_cron.ok
+        (chatWorker?.ok ?? false)
+        && health.workers.safe_walk_cron.ok
         && health.workers.event_reminder_cron.ok
         && health.workers.admin_alerts?.ok,
       ),
@@ -420,7 +432,7 @@ export default function HealthPage() {
       deployment_id: null,
       deployed_at: null,
       regions: [],
-      source: 'Drei aktuelle Worker-Heartbeats',
+      source: 'Vier aktuelle Worker-Heartbeats',
     },
     {
       key: 'postgres',
@@ -651,9 +663,26 @@ export default function HealthPage() {
           <section className="mb-7">
             <SectionTitle
               title="Hintergrunddienste"
-              description="Die drei Aufgaben laufen gemeinsam im separaten Singleton-Service hostly-worker."
+              description="Die vier Aufgaben laufen gemeinsam im separaten Singleton-Service hostly-worker."
             />
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-xl border border-gray-200 bg-white p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="rounded-lg bg-violet-50 p-2 text-violet-600"><MessageCircle size={18} /></span>
+                    <div><h4 className="text-sm font-semibold text-gray-900">Chat-Zustellung</h4><p className="mt-0.5 text-xs text-gray-500">Outbox jede Sekunde</p></div>
+                  </div>
+                  <StatusBadge ok={chatWorker?.ok ?? false} />
+                </div>
+                <p className="mt-4 text-xs leading-5 text-gray-500">Verteilt Push und E-Mail nach dem sicheren Speichern der Nachricht und wiederholt nur temporäre Providerfehler.</p>
+                <p className="mt-3 text-xs text-gray-500">Heartbeat: <strong className="text-gray-700">{formatDate(chatWorker?.last_seen_at)}</strong></p>
+                <dl className="mt-4 grid grid-cols-3 gap-2 border-t border-gray-100 pt-4 text-xs">
+                  <div><dt className="text-gray-400">Offen</dt><dd className="mt-1 text-xl font-bold text-gray-900">{chatWorker?.pending_jobs ?? 0}</dd></div>
+                  <div><dt className="text-gray-400">Fehler</dt><dd className="mt-1 text-xl font-bold text-gray-900">{chatWorker?.failed_jobs ?? 0}</dd></div>
+                  <div><dt className="text-gray-400">Wartezeit</dt><dd className="mt-1 text-xl font-bold text-gray-900">{chatWorker?.queue_lag_seconds ?? 0}s</dd></div>
+                </dl>
+              </div>
+
               <div className="rounded-xl border border-gray-200 bg-white p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
