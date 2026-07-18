@@ -9,6 +9,7 @@ import {
   Cloud,
   Database,
   ExternalLink,
+  Globe2,
   HardDrive,
   Mail,
   Radio,
@@ -186,6 +187,7 @@ interface SentryMonitoring {
 
 const CHECK_LABELS: Record<string, string> = {
   apns: 'Apple Push',
+  fcm: 'Firebase Cloud Messaging',
   email: 'E-Mail-Versand',
   sentry: 'Sentry',
   firebase_analytics: 'Firebase Analytics',
@@ -193,12 +195,18 @@ const CHECK_LABELS: Record<string, string> = {
 
 const CHECK_ICONS: Record<string, LucideIcon> = {
   apns: Smartphone,
+  fcm: BellRing,
   email: Mail,
   sentry: ShieldCheck,
   firebase_analytics: Activity,
 }
 
+const CHECK_PURPOSES: Record<string, string> = {
+  fcm: 'Stellt Android-Push für Chats, Treffen, Safe Walk und administrative Hinweise zu.',
+}
+
 const SERVICE_ICONS: Record<string, LucideIcon> = {
+  website: Globe2,
   frontend: Cloud,
   backend: Server,
   worker: Zap,
@@ -276,7 +284,9 @@ function ServiceCard({ service }: { service: RailwayService }) {
         {directCheck ? (
           <div className="col-span-2">
             <dt className="text-gray-400">Prüfung</dt>
-            <dd className="mt-1 font-semibold text-gray-800">Direkte Verbindung und Heartbeat</dd>
+            <dd className="mt-1 font-semibold text-gray-800">
+              {service.key === 'website' ? 'Öffentlicher HTTPS-Health-Check' : 'Direkte Verbindung und Heartbeat'}
+            </dd>
           </div>
         ) : (
           <>
@@ -311,7 +321,8 @@ function IntegrationCard({ checkKey, check }: { checkKey: string; check: Check }
           <span className="rounded-lg bg-gray-50 p-2 text-gray-600"><Icon size={16} /></span>
           <div>
             <h4 className="text-sm font-semibold text-gray-900">{CHECK_LABELS[checkKey] ?? checkKey}</h4>
-            <p className="mt-1 text-xs leading-5 text-gray-500">{detail}</p>
+            {CHECK_PURPOSES[checkKey] && <p className="mt-1 text-xs leading-5 text-gray-500">{CHECK_PURPOSES[checkKey]}</p>}
+            <p className={`${CHECK_PURPOSES[checkKey] ? 'mt-2' : 'mt-1'} text-xs font-medium leading-5 text-gray-600`}>{detail}</p>
           </div>
         </div>
         <StatusBadge ok={check.ok} optional={check.optional} label={check.optional && !check.ok ? 'Optional' : undefined} />
@@ -346,11 +357,25 @@ export default function HealthPage() {
   const overallOk = overallState === 'healthy'
   const overallCritical = overallState === 'critical'
   const integrationChecks = Object.entries(health?.checks ?? {}).filter(
-    ([key]) => !['database', 'redis', 'admin_alerting'].includes(key),
+    ([key]) => !['database', 'redis', 'website', 'admin_alerting'].includes(key),
   )
   const postgresVolume = infrastructure?.volumes.find((volume) => volume.service === 'Postgres')
   const redisVolume = infrastructure?.volumes.find((volume) => volume.service === 'Redis')
   const directServices: RailwayService[] = health ? [
+    {
+      key: 'website',
+      name: 'hostly-website',
+      label: 'Öffentliche Website',
+      role: 'Stellt meet-hostly.com, Produktinformationen und Rechtstexte bereit.',
+      ok: health.checks.website?.ok ?? false,
+      status: 'DIRECT',
+      running_replicas: 0,
+      desired_replicas: 0,
+      deployment_id: null,
+      deployed_at: null,
+      regions: [],
+      source: 'https://meet-hostly.com/healthz',
+    },
     {
       key: 'frontend',
       name: 'hostly_frontend',
@@ -426,7 +451,20 @@ export default function HealthPage() {
       source: 'Direkter Ping und INFO-Abfrage',
     },
   ] : []
-  const services = infrastructure?.services.length ? infrastructure.services : directServices
+  const railwayServices = infrastructure?.services ?? []
+  const services = railwayServices.length
+    ? [
+        ...railwayServices.map((service) => service.key === 'website' ? {
+          ...service,
+          ok: service.ok && (health?.checks.website?.ok ?? false),
+          source: service.source || 'Railway-Deployment + /healthz',
+        } : service),
+        ...directServices.filter(
+          (directService) => directService.key === 'website'
+            && !railwayServices.some((service) => service.key === 'website'),
+        ),
+      ]
+    : directServices
   const healthyServiceCount = services.filter((service) => service.ok).length
   const backendService = services.find((service) => service.key === 'backend')
   const pitrOk = infrastructure?.postgres.pitr.ok ?? null
