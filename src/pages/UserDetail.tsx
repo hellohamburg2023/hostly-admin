@@ -84,6 +84,7 @@ interface UserDetail {
     interests: string[]
     rating_average: number
     rating_count: number
+    notification_settings: Record<string, boolean | string[]>
   } | null
   hosted_events: AdminEvent[]
   participations: { id: number; created_at: string; event: AdminEvent }[]
@@ -95,6 +96,7 @@ interface UserDetail {
   blocks_sent: { id: number; created_at: string; blocked: CompactUser }[]
   blocks_received: { id: number; created_at: string; blocker: CompactUser }[]
   push_devices: { id: number; token_suffix: string; device_id: string; platform: string; preferred_language: string; enabled: boolean; has_live_activity_start_token: boolean; created_at: string; updated_at: string }[]
+  device_permissions: { id: number; device_id: string; platform: string; notification_permission: string; location_permission: string; updated_at: string }[]
   category_follows: { id: number; category_id: number; category_name: string; category_slug: string; created_at: string }[]
   personal_verifications_given: PersonalVerification[]
   personal_verifications_received: PersonalVerification[]
@@ -160,6 +162,14 @@ function ReportList({ reports }: { reports: Report[] }) {
       ))}
     </div>
   )
+}
+
+const permissionLabel = (value: string, type: 'notification' | 'location') => {
+  if (value === 'granted') return 'Erlaubt'
+  if (value === 'denied') return 'Nicht erlaubt'
+  if (value === 'always') return 'Immer'
+  if (value === 'when_in_use') return 'Beim Verwenden'
+  return type === 'notification' ? 'Unbekannt' : 'Unbekannt'
 }
 
 export default function UserDetailPage() {
@@ -361,9 +371,39 @@ export default function UserDetailPage() {
               </dl>
             </div>
           </Section>
+
+          <Section title="Benachrichtigungseinstellungen">
+            <div className="rounded-xl border border-gray-200 bg-white p-5">
+              {user.profile ? (
+                <dl className="grid grid-cols-1 gap-4">
+                  <DetailRow label="Push insgesamt" value={user.profile.notification_settings?.push_enabled ? 'Aktiviert' : 'Deaktiviert'} />
+                  <DetailRow label="Event-Erinnerungen" value={user.profile.notification_settings?.push_event_reminders ? 'Aktiviert' : 'Deaktiviert'} />
+                  <DetailRow label="Event-Updates" value={user.profile.notification_settings?.push_event_updates ? 'Aktiviert' : 'Deaktiviert'} />
+                  <DetailRow label="Chat-Nachrichten" value={user.profile.notification_settings?.push_chat_messages ? 'Aktiviert' : 'Deaktiviert'} />
+                  <DetailRow label="Kategorie-Updates" value={user.profile.notification_settings?.push_category_events ? 'Aktiviert' : 'Deaktiviert'} />
+                  <DetailRow label="Sicherheits-Hinweise" value={user.profile.notification_settings?.push_safety_alerts ? 'Aktiviert' : 'Deaktiviert'} />
+                </dl>
+              ) : <p className="text-sm text-gray-400">Kein Profil</p>}
+            </div>
+          </Section>
         </div>
 
         <div className="xl:col-span-2">
+          <Section title="Geräteberechtigungen">
+            <div className="rounded-xl border border-gray-200 bg-white">
+              {user.device_permissions.length === 0 ? (
+                <p className="p-4 text-sm text-gray-400">Noch nicht von einer aktuellen App-Version gemeldet</p>
+              ) : user.device_permissions.map((device) => (
+                <div key={device.id} className="flex flex-col items-start justify-between gap-2 border-b border-gray-100 px-4 py-3 last:border-0 sm:flex-row sm:items-center sm:gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{device.platform === 'ios' ? 'iPhone/iPad' : device.platform === 'android' ? 'Android' : device.platform}</p>
+                    <p className="text-xs text-gray-500">Push: {permissionLabel(device.notification_permission, 'notification')} · Standort: {permissionLabel(device.location_permission, 'location')}</p>
+                  </div>
+                  <p className="shrink-0 text-xs text-gray-400">{formatDate(device.updated_at, true)}</p>
+                </div>
+              ))}
+            </div>
+          </Section>
           <Section title="Events als Host">
             <SmallEventList events={user.hosted_events} />
           </Section>
