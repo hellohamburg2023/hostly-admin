@@ -22,12 +22,25 @@ interface Event {
   resolved_report_count: number
   dismissed_report_count: number
   women_only: boolean
+  safety_badges: string[]
   host_id: number
   host_email: string
   host_username: string
   host_name: string
   category_name: string
   created_at: string
+}
+
+function participationMode(event: Pick<Event, 'safety_badges'>) {
+  return event.safety_badges?.includes('manual_approval')
+    ? 'Freigabe durch Host'
+    : 'Direkte Teilnahme'
+}
+
+function meetingPlaceType(event: Pick<Event, 'safety_badges'>) {
+  return event.safety_badges?.includes('public_place')
+    ? 'Öffentlicher Treffpunkt'
+    : 'Privater Treffpunkt'
 }
 
 interface Page<T> {
@@ -181,12 +194,16 @@ export default function EventsPage() {
                       <span className="flex items-center gap-1 text-gray-500 text-xs"><MapPin size={10} />{event.city || '-'}</span>
                       <span className="flex items-center gap-1 text-gray-500 text-xs"><Calendar size={10} />{formatDate(event.starts_at, true)}</span>
                       <span className="flex items-center gap-1 text-gray-500 text-xs"><Users size={10} />{event.participant_count}/{event.participant_limit} · {event.request_count} Anfragen</span>
+                      <span className="text-xs text-gray-500">{meetingPlaceType(event)} · {participationMode(event)}</span>
                     </div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       <Badge className={STATUS_STYLES[event.status] || STATUS_STYLES.draft}>
                         {STATUS_DE[event.status] || event.status}
+                      </Badge>
+                      <Badge className={event.safety_badges?.includes('manual_approval') ? 'bg-amber-100 text-amber-700' : 'bg-teal-100 text-teal-700'}>
+                        {event.safety_badges?.includes('manual_approval') ? 'Freigabe nötig' : 'Direkte Teilnahme'}
                       </Badge>
                       {event.women_only && <Badge className="bg-pink-100 text-pink-600">Women only</Badge>}
                       {event.open_report_count > 0 && <Badge className="bg-red-100 text-red-700">{event.open_report_count} offen</Badge>}

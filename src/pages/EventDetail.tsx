@@ -97,6 +97,27 @@ const STATUS_STYLES: Record<string, string> = {
   arrived: 'bg-blue-100 text-blue-700',
 }
 
+function participationMode(event: Pick<EventDetail, 'safety_badges'>) {
+  return event.safety_badges?.includes('manual_approval')
+    ? 'Freigabe durch den Host erforderlich'
+    : 'Direkte Teilnahme möglich'
+}
+
+function meetingPlaceType(event: Pick<EventDetail, 'safety_badges'>) {
+  return event.safety_badges?.includes('public_place')
+    ? 'Öffentlicher Treffpunkt'
+    : 'Privater Treffpunkt'
+}
+
+function safetyBadgeLabels(event: Pick<EventDetail, 'safety_badges'>) {
+  const labels: Record<string, string> = {
+    queer_friendly: 'Queer-friendly',
+    women_only: 'Frauen-only',
+  }
+  const badges = event.safety_badges?.filter((badge) => !['manual_approval', 'public_place'].includes(badge)) ?? []
+  return badges.map((badge) => labels[badge] || badge.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())).join(', ') || 'Keine weiteren'
+}
+
 function UserLine({ user }: { user: CompactUser | null }) {
   if (!user) return <p className="text-sm font-medium text-gray-500">Gelöschtes Mitglied</p>
   return (
@@ -173,6 +194,9 @@ export default function EventDetailPage() {
             <div className="mb-2 flex flex-wrap gap-2">
               <Badge className={STATUS_STYLES[event.status] || STATUS_STYLES.draft}>{event.status}</Badge>
               {event.women_only && <Badge className="bg-pink-100 text-pink-700">Women only</Badge>}
+              <Badge className={event.safety_badges?.includes('manual_approval') ? 'bg-amber-100 text-amber-700' : 'bg-teal-100 text-teal-700'}>
+                {event.safety_badges?.includes('manual_approval') ? 'Freigabe nötig' : 'Direkte Teilnahme'}
+              </Badge>
               {event.report_count > 0 && <Badge className="bg-red-100 text-red-700">{event.report_count} Meldungen</Badge>}
             </div>
             <h2 className="break-words text-xl font-bold text-gray-900">{event.title}</h2>
@@ -211,12 +235,14 @@ export default function EventDetailPage() {
                 <DetailRow label="Kategorie" value={event.category_name} />
                 <DetailRow label="Stadt" value={event.city} />
                 <DetailRow label="Öffentlicher Ort" value={event.public_location} />
+                <DetailRow label="Treffpunkt" value={meetingPlaceType(event)} />
                 <DetailRow label="Genauer Ort" value={event.precise_location} />
                 <DetailRow label="Koordinaten" value={mapUrl ? <a href={mapUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-violet-700 hover:text-violet-900"><MapPin size={13} /> Karte öffnen</a> : '-'} />
                 <DetailRow label="Start" value={formatDate(event.starts_at, true)} />
                 <DetailRow label="Ende" value={formatDate(event.ends_at, true)} />
                 <DetailRow label="Teilnehmer" value={`${event.participant_count}/${event.participant_limit} · min. ${event.min_participants}`} />
-                <DetailRow label="Sicherheitsbadges" value={event.safety_badges?.join(', ')} />
+                <DetailRow label="Teilnahme" value={participationMode(event)} />
+                <DetailRow label="Weitere Sicherheitsbadges" value={safetyBadgeLabels(event)} />
                 <DetailRow label="Altersbereich" value={event.age_restriction_enabled ? `${event.min_age ?? '?'} bis ${event.max_age ?? '?'} Jahre` : 'Keine Altersbeschränkung'} />
                 <DetailRow label="Interessen" value={event.interests?.join(', ')} />
                 <DetailRow label="Regeln" value={event.rules} />
