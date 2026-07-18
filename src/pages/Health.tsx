@@ -322,7 +322,7 @@ function IntegrationCard({ checkKey, check }: { checkKey: string; check: Check }
           <div>
             <h4 className="text-sm font-semibold text-gray-900">{CHECK_LABELS[checkKey] ?? checkKey}</h4>
             {CHECK_PURPOSES[checkKey] && <p className="mt-1 text-xs leading-5 text-gray-500">{CHECK_PURPOSES[checkKey]}</p>}
-            <p className={`${CHECK_PURPOSES[checkKey] ? 'mt-2' : 'mt-1'} text-xs font-medium leading-5 text-gray-600`}>{detail}</p>
+            {checkKey !== 'fcm' && <p className={`${CHECK_PURPOSES[checkKey] ? 'mt-2' : 'mt-1'} text-xs font-medium leading-5 text-gray-600`}>{detail}</p>}
           </div>
         </div>
         <StatusBadge ok={check.ok} optional={check.optional} label={check.optional && !check.ok ? 'Optional' : undefined} />
