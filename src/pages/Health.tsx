@@ -202,7 +202,7 @@ const CHECK_ICONS: Record<string, LucideIcon> = {
 }
 
 const CHECK_PURPOSES: Record<string, string> = {
-  fcm: 'Stellt Android-Push für Chats, Treffen, Safe Walk und administrative Hinweise zu.',
+  fcm: 'Android-Push für die Hostly-App.',
 }
 
 const SERVICE_ICONS: Record<string, LucideIcon> = {
