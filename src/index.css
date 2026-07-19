@@ -46,6 +46,10 @@ body { margin: 0; font-family: system-ui, sans-serif; background: #f8f9fa; }
   overflow-wrap: anywhere;
 }
 
+.admin-user-cards {
+  display: none;
+}
+
 @media (max-width: 639px) {
   .admin-content > .p-8 {
     padding: 1rem;
@@ -61,6 +65,14 @@ body { margin: 0; font-family: system-ui, sans-serif; background: #f8f9fa; }
     width: 100%;
     min-width: 0;
     max-width: none;
+  }
+
+  .admin-user-table {
+    display: none;
+  }
+
+  .admin-user-cards {
+    display: block;
   }
 
 }

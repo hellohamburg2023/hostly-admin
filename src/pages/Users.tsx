@@ -172,10 +172,59 @@ export default function UsersPage() {
         </select>
       </div>
 
-      <div className="admin-table overflow-x-auto rounded-xl border border-gray-200 bg-white">
+      <div className="admin-user-results">
         {isLoading ? (
-          <div className="p-8 text-center text-gray-400">Laden...</div>
+          <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-400">Laden...</div>
         ) : (
+          <>
+          <div className="admin-user-cards divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 bg-white">
+            {users.map((u) => (
+              <article key={u.id} className="p-4">
+                <div className="flex items-start gap-3">
+                  <Link to={`/users/${u.id}`} className="flex min-w-0 flex-1 items-start gap-3">
+                    {u.profile_photo_url ? (
+                      <img src={u.profile_photo_url} className="h-10 w-10 shrink-0 rounded-full object-cover" alt="" />
+                    ) : (
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-100 text-sm font-bold text-violet-600">
+                        {(u.profile_display_name || u.username || '?')[0].toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-gray-900">{u.profile_display_name || u.username}</p>
+                      <p className="truncate text-xs text-gray-400">{u.email}</p>
+                      <p className="mt-1 text-xs text-gray-500">{u.profile_city || 'Keine Stadt'} · {activityLabel(u.inactive_days)}</p>
+                    </div>
+                  </Link>
+                  <Link
+                    to={`/users/${u.id}`}
+                    aria-label={`Details von ${u.profile_display_name || u.username} öffnen`}
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                  >
+                    <Eye size={17} />
+                  </Link>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-1">
+                  {u.is_deleted ? (
+                    <Badge className="bg-gray-200 text-gray-700">Gelöscht</Badge>
+                  ) : (
+                    <Badge className={u.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}>{u.is_active ? 'Aktiv' : 'Gesperrt'}</Badge>
+                  )}
+                  {u.is_test_user && <Badge className="bg-violet-100 text-violet-700">Testuser</Badge>}
+                  {u.profile_verification_status && <Badge className={BADGE[u.profile_verification_status] || BADGE.unverified}>{u.profile_hostly_verified ? 'Hostly-verifiziert' : u.profile_verification_status}</Badge>}
+                  {u.is_superuser && <Badge className="bg-violet-100 text-violet-700">Superuser</Badge>}
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-3 border-t border-gray-100 pt-3 text-xs text-gray-500">
+                  <span>{u.hosted_event_count} Events · {u.participation_count} Teilnahmen</span>
+                  <div className="flex shrink-0 gap-1">
+                    <button onClick={() => mutation.mutate({ id: u.id, patch: { is_test_user: !u.is_test_user } })} title={u.is_test_user ? 'Testuser-Markierung entfernen' : 'Als Testuser markieren'} className={`rounded-lg p-2 ${u.is_test_user ? 'bg-violet-100 text-violet-700' : 'text-gray-500 hover:bg-violet-50 hover:text-violet-700'}`}><Tag size={15} /></button>
+                    {!u.is_superuser && !u.is_deleted && <button onClick={() => mutation.mutate({ id: u.id, patch: { is_active: !u.is_active } })} title={u.is_active ? 'Sperren' : 'Entsperren'} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800">{u.is_active ? <UserX size={15} /> : <UserCheck size={15} />}</button>}
+                    {!u.is_superuser && <button type="button" onClick={() => { const name = u.profile_display_name || u.username || u.email; const confirmation = prompt(`Nutzer „${name}“ endgültig löschen? Konto, Events, Dateien und zugehörige Daten werden entfernt.\n\nTippe LÖSCHEN zur Bestätigung.`); if (confirmation === 'LÖSCHEN') deleteMutation.mutate(u.id) }} disabled={deleteMutation.isPending} title="Nutzer endgültig löschen" className="rounded-lg p-2 text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"><Trash2 size={15} /></button>}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+          <div className="admin-user-table admin-table overflow-x-auto rounded-xl border border-gray-200 bg-white">
           <table className="w-full min-w-[820px] text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
@@ -281,6 +330,8 @@ export default function UsersPage() {
               ))}
             </tbody>
           </table>
+          </div>
+          </>
         )}
       </div>
       <Pagination data={page} onCursor={setCursor} />
