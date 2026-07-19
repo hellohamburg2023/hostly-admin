@@ -292,7 +292,7 @@ export default function UserDetailPage() {
                 {user.is_active ? 'Nutzer sperren' : 'Nutzer entsperren'}
               </button>
             )}
-            {!user.is_superuser && (
+            {!user.is_superuser && !user.is_deleted && (
               <button
                 type="button"
                 onClick={() => {

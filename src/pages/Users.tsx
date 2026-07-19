@@ -218,7 +218,7 @@ export default function UsersPage() {
                   <div className="flex shrink-0 gap-1">
                     <button onClick={() => mutation.mutate({ id: u.id, patch: { is_test_user: !u.is_test_user } })} title={u.is_test_user ? 'Testuser-Markierung entfernen' : 'Als Testuser markieren'} className={`rounded-lg p-2 ${u.is_test_user ? 'bg-violet-100 text-violet-700' : 'text-gray-500 hover:bg-violet-50 hover:text-violet-700'}`}><Tag size={15} /></button>
                     {!u.is_superuser && !u.is_deleted && <button onClick={() => mutation.mutate({ id: u.id, patch: { is_active: !u.is_active } })} title={u.is_active ? 'Sperren' : 'Entsperren'} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800">{u.is_active ? <UserX size={15} /> : <UserCheck size={15} />}</button>}
-                    {!u.is_superuser && <button type="button" onClick={() => { const name = u.profile_display_name || u.username || u.email; const confirmation = prompt(`Nutzer „${name}“ endgültig löschen? Konto, Events, Dateien und zugehörige Daten werden entfernt.\n\nTippe LÖSCHEN zur Bestätigung.`); if (confirmation === 'LÖSCHEN') deleteMutation.mutate(u.id) }} disabled={deleteMutation.isPending} title="Nutzer endgültig löschen" className="rounded-lg p-2 text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"><Trash2 size={15} /></button>}
+                    {!u.is_superuser && !u.is_deleted && <button type="button" onClick={() => { const name = u.profile_display_name || u.username || u.email; const confirmation = prompt(`Nutzer „${name}“ endgültig löschen? Konto, Events, Dateien und zugehörige Daten werden entfernt.\n\nTippe LÖSCHEN zur Bestätigung.`); if (confirmation === 'LÖSCHEN') deleteMutation.mutate(u.id) }} disabled={deleteMutation.isPending} title="Nutzer endgültig löschen" className="rounded-lg p-2 text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"><Trash2 size={15} /></button>}
                   </div>
                 </div>
               </article>
@@ -309,7 +309,7 @@ export default function UsersPage() {
                           {u.is_active ? <UserX size={14} /> : <UserCheck size={14} />}
                         </button>
                       )}
-                      {!u.is_superuser && (
+                      {!u.is_superuser && !u.is_deleted && (
                         <button
                           type="button"
                           onClick={() => {
