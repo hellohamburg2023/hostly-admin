@@ -45,6 +45,7 @@ interface EventDetail {
   participant_count: number
   request_count: number
   report_count: number
+  counts_toward_activity: boolean
   women_only: boolean
   safety_badges: string[]
   rules: string
@@ -147,8 +148,12 @@ export default function EventDetailPage() {
     enabled: Boolean(id),
   })
   const mutation = useMutation({
-    mutationFn: (status: string) => patchEvent(Number(id), { status }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['event', id] }),
+    mutationFn: (data: Record<string, unknown>) => patchEvent(Number(id), data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['event', id] })
+      qc.invalidateQueries({ queryKey: ['events'] })
+      qc.invalidateQueries({ queryKey: ['users'] })
+    },
   })
   const photoMutation = useMutation({
     mutationFn: (photoId: number) => deleteEventPhoto(Number(id), photoId),
@@ -197,6 +202,7 @@ export default function EventDetailPage() {
               <Badge className={event.safety_badges?.includes('manual_approval') ? 'bg-amber-100 text-amber-700' : 'bg-teal-100 text-teal-700'}>
                 {event.safety_badges?.includes('manual_approval') ? 'Freigabe nötig' : 'Direkte Teilnahme'}
               </Badge>
+              {!event.counts_toward_activity && <Badge className="bg-sky-100 text-sky-700">Beta-Test · zählt nicht</Badge>}
               {event.report_count > 0 && <Badge className="bg-red-100 text-red-700">{event.report_count} Meldungen</Badge>}
             </div>
             <h2 className="break-words text-xl font-bold text-gray-900">{event.title}</h2>
@@ -205,12 +211,20 @@ export default function EventDetailPage() {
           <div className="flex flex-wrap justify-end gap-2">
             {event.status !== 'cancelled' && event.status !== 'completed' && (
               <button
-                onClick={() => mutation.mutate('cancelled')}
+                onClick={() => mutation.mutate({ status: 'cancelled' })}
                 className="inline-flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
               >
                 <Ban size={15} /> Event absagen
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => mutation.mutate({ counts_toward_activity: !event.counts_toward_activity })}
+              disabled={mutation.isPending}
+              className="inline-flex items-center gap-2 rounded-lg bg-sky-50 px-3 py-2 text-sm font-medium text-sky-700 hover:bg-sky-100 disabled:opacity-50"
+            >
+              {event.counts_toward_activity ? 'Als Beta-Test markieren' : 'Als reguläres Event zählen'}
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -242,6 +256,7 @@ export default function EventDetailPage() {
                 <DetailRow label="Ende" value={formatDate(event.ends_at, true)} />
                 <DetailRow label="Teilnehmer" value={`${event.participant_count}/${event.participant_limit} · min. ${event.min_participants}`} />
                 <DetailRow label="Teilnahme" value={participationMode(event)} />
+                <DetailRow label="Aktivitätszählung" value={event.counts_toward_activity ? 'Zählt für Host und Teilnehmende' : 'Beta-Test – zählt nicht für Host und Teilnehmende'} />
                 <DetailRow label="Weitere Sicherheitsbadges" value={safetyBadgeLabels(event)} />
                 <DetailRow label="Altersbereich" value={event.age_restriction_enabled ? `${event.min_age ?? '?'} bis ${event.max_age ?? '?'} Jahre` : 'Keine Altersbeschränkung'} />
                 <DetailRow label="Interessen" value={event.interests?.join(', ')} />

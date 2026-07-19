@@ -21,6 +21,7 @@ interface Event {
   reviewing_report_count: number
   resolved_report_count: number
   dismissed_report_count: number
+  counts_toward_activity: boolean
   women_only: boolean
   safety_badges: string[]
   host_id: number
@@ -206,6 +207,7 @@ export default function EventsPage() {
                         {event.safety_badges?.includes('manual_approval') ? 'Freigabe nötig' : 'Direkte Teilnahme'}
                       </Badge>
                       {event.women_only && <Badge className="bg-pink-100 text-pink-600">Women only</Badge>}
+                      {!event.counts_toward_activity && <Badge className="bg-sky-100 text-sky-700">Beta-Test</Badge>}
                       {event.open_report_count > 0 && <Badge className="bg-red-100 text-red-700">{event.open_report_count} offen</Badge>}
                       {event.reviewing_report_count > 0 && <Badge className="bg-amber-100 text-amber-700">{event.reviewing_report_count} in Prüfung</Badge>}
                       {event.report_count > 0 && <Badge className="bg-gray-100 text-gray-700">{event.report_count} Meldungen gesamt</Badge>}
