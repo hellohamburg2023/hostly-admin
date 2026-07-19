@@ -177,7 +177,7 @@ export default function UsersPage() {
           <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-400">Laden...</div>
         ) : (
           <>
-          <div className="admin-user-cards divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 bg-white">
+          <div className="admin-user-cards overflow-hidden rounded-xl border border-gray-200 bg-white">
             {users.map((u) => (
               <article key={u.id} className="p-4">
                 <div className="flex items-start gap-3">

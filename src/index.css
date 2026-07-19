@@ -75,6 +75,10 @@ body { margin: 0; font-family: system-ui, sans-serif; background: #f8f9fa; }
     display: block;
   }
 
+  .admin-user-cards > article + article {
+    border-top: 3px solid #ede9fe;
+  }
+
 }
 
 @media (min-width: 640px) and (max-width: 1023px) {
