@@ -180,6 +180,7 @@ interface Health {
       timezone: string
     }
   }
+  outages: OperationalOutage[]
 }
 
 interface SentryMonitoring {
@@ -193,6 +194,18 @@ interface SentryMonitoring {
   latest_seen_at: string | null
   truncated: boolean
   dashboard_url: string
+}
+
+interface OperationalOutage {
+  id: number
+  source: string
+  key: string
+  severity: 'warning' | 'critical'
+  title: string
+  summary: string
+  started_at: string
+  last_seen_at: string
+  ended_at: string | null
 }
 
 const CHECK_LABELS: Record<string, string> = {
@@ -773,6 +786,41 @@ export default function HealthPage() {
               )}
             </section>
           )}
+
+          <section className="mt-7">
+            <SectionTitle
+              title="Ausfallhistorie"
+              description="Erkannte Betriebsstörungen der letzten 12 Monate. Geschlossene Einträge werden nach einem Jahr automatisch entfernt."
+            />
+            <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+              {health.outages.length === 0 ? (
+                <p className="p-5 text-sm text-gray-400">In den letzten 12 Monaten wurden keine Betriebsstörungen erfasst.</p>
+              ) : (
+                <table className="w-full min-w-[900px] text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 bg-gray-50">
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Beginn</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Ende</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Störung</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Quelle</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {health.outages.map((outage) => (
+                      <tr key={outage.id}>
+                        <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-500">{formatDate(outage.started_at)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-500">{outage.ended_at ? formatDate(outage.ended_at) : 'Läuft noch'}</td>
+                        <td className="px-4 py-3"><p className="font-medium text-gray-900">{outage.title}</p><p className="mt-1 text-xs leading-5 text-gray-500">{outage.summary}</p></td>
+                        <td className="px-4 py-3 font-mono text-xs text-gray-500">{outage.source}</td>
+                        <td className="px-4 py-3"><Badge className={outage.ended_at ? 'bg-gray-100 text-gray-700' : outage.severity === 'critical' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}>{outage.ended_at ? 'Behoben' : outage.severity === 'critical' ? 'Kritisch' : 'Hinweis'}</Badge></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </section>
         </>
       )}
     </div>

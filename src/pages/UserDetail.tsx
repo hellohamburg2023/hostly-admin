@@ -96,7 +96,7 @@ interface UserDetail {
   blocks_sent: { id: number; created_at: string; blocked: CompactUser }[]
   blocks_received: { id: number; created_at: string; blocker: CompactUser }[]
   push_devices: { id: number; token_suffix: string; device_id: string; platform: string; preferred_language: string; enabled: boolean; has_live_activity_start_token: boolean; created_at: string; updated_at: string }[]
-  device_permissions: { id: number; device_id: string; platform: string; notification_permission: string; location_permission: string; updated_at: string }[]
+  device_permissions: { id: number; device_id: string; platform: string; notification_permission: string; location_permission: string; app_version: string; app_build: string; updated_at: string }[]
   category_follows: { id: number; category_id: number; category_name: string; category_slug: string; created_at: string }[]
   personal_verifications_given: PersonalVerification[]
   personal_verifications_received: PersonalVerification[]
@@ -398,6 +398,7 @@ export default function UserDetailPage() {
                   <div>
                     <p className="text-sm font-medium text-gray-900">{device.platform === 'ios' ? 'iPhone/iPad' : device.platform === 'android' ? 'Android' : device.platform}</p>
                     <p className="text-xs text-gray-500">Push: {permissionLabel(device.notification_permission, 'notification')} · Standort: {permissionLabel(device.location_permission, 'location')}</p>
+                    <p className="mt-0.5 text-xs text-gray-500">Version: {device.app_version || 'Noch nicht gemeldet'} · Build: {device.app_build || 'Noch nicht gemeldet'}</p>
                   </div>
                   <p className="shrink-0 text-xs text-gray-400">{formatDate(device.updated_at, true)}</p>
                 </div>
@@ -492,6 +493,9 @@ export default function UserDetailPage() {
                 <div key={log.id} className="border-b border-gray-100 px-4 py-3 text-sm last:border-0">
                   <p className="font-medium text-gray-900">{log.action}</p>
                   <p className="text-xs text-gray-400">{formatDate(log.created_at, true)} · {log.actor_email || 'System'}</p>
+                  {Object.keys(log.metadata).length > 0 && (
+                    <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs leading-5 text-gray-500">{JSON.stringify(log.metadata, null, 2)}</pre>
+                  )}
                 </div>
               ))}
             </div>

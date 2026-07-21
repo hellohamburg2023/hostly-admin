@@ -112,7 +112,7 @@ export default function AuditLogsPage() {
         <EmptyState>Keine Audit-Einträge gefunden</EmptyState>
       ) : (
         <div className="admin-table overflow-x-auto rounded-xl border border-gray-200 bg-white">
-          <table className="w-full min-w-[850px] text-sm">
+          <table className="w-full min-w-[1000px] text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Zeit</th>
@@ -150,9 +150,9 @@ export default function AuditLogsPage() {
                       {log.target_repr && <p className="text-xs text-gray-400">{log.target_repr}</p>}
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500">{log.ip_address || '-'}</td>
-                    <td className="px-4 py-3">
-                      <pre className="max-w-xs overflow-hidden text-ellipsis whitespace-nowrap font-mono text-xs text-gray-500">
-                        {JSON.stringify(log.metadata)}
+                    <td className="min-w-80 px-4 py-3 align-top">
+                      <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-5 text-gray-500">
+                        {JSON.stringify(log.metadata, null, 2)}
                       </pre>
                     </td>
                   </tr>
