@@ -13,6 +13,7 @@ interface ProductAnalytics {
   required_settings?: string[]
   summary?: { active_users: number; sessions: number; events: number }
   events?: { event_name: string; label: string; count: number; users: number }[]
+  platforms?: { platform: 'iOS' | 'Android'; active_users: number; sessions: number; events: number }[]
   daily?: ({ date: string; total: number } & Record<string, number | string>)[]
   ratios?: { onboarding_per_signup: number; join_request_per_event_view: number }
   privacy_note?: string
@@ -47,13 +48,14 @@ export default function ProductAnalyticsPage() {
 
   const daily = (data?.daily ?? []).map((row) => ({ ...row, label: dateLabel(String(row.date)) }))
   const events = [...(data?.events ?? [])].sort((a, b) => b.count - a.count)
+  const platforms = new Map((data?.platforms ?? []).map((platform) => [platform.platform, platform]))
 
   return (
     <div className="p-8">
       <div className="admin-page-header mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Firebase Produkt-Analytics</h2>
-          <p className="mt-0.5 text-sm text-gray-500">Pseudonyme Nutzungssignale der iOS-App über die Google Analytics Data API</p>
+          <p className="mt-0.5 text-sm text-gray-500">Pseudonyme Nutzungssignale der iOS- und Android-App über die Google Analytics Data API</p>
         </div>
         <div className="flex items-center gap-2">
           <select value={days} onChange={(event) => setDays(Number(event.target.value))} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500">
@@ -80,7 +82,7 @@ export default function ProductAnalyticsPage() {
                 <h3 className="font-semibold text-amber-950">Admin-Auswertung einrichten</h3>
                 <Badge className="bg-amber-100 text-amber-800">Firebase-Projekt hostly-50833</Badge>
               </div>
-              <p className="mt-1 text-sm leading-6 text-amber-900">Die iOS-App sendet bereits freigegebene Analytics-Ereignisse. Für dieses Dashboard fehlt nur der schreibgeschützte Zugriff auf die GA4-Property.</p>
+              <p className="mt-1 text-sm leading-6 text-amber-900">Die iOS- und Android-App senden nach Einwilligung pseudonyme Analytics-Ereignisse. Für dieses Dashboard fehlt nur der schreibgeschützte Zugriff auf die GA4-Property.</p>
             </div>
           </div>
           <ol className="grid gap-4 p-5 md:grid-cols-3">
@@ -110,11 +112,16 @@ export default function ProductAnalyticsPage() {
       ) : data?.configured ? (
         <>
           <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <KPI icon={Users} label="Aktive Nutzer" value={data.summary?.active_users ?? 0} sub={`letzte ${data.days} Tage`} />
+            <KPI icon={Users} label="Aktive Analytics-Geräte" value={data.summary?.active_users ?? 0} sub={`letzte ${data.days} Tage · keine Accounts`} />
             <KPI icon={Activity} label="Sitzungen" value={data.summary?.sessions ?? 0} sub="Firebase Sessions" />
             <KPI icon={MousePointerClick} label="Ereignisse" value={data.summary?.events ?? 0} sub="alle Analytics-Ereignisse" />
             <KPI icon={CalendarCheck} label="Onboarding-Quote" value={`${data.ratios?.onboarding_per_signup ?? 0}%`} sub="Abschlüsse je Registrierung" />
             <KPI icon={MousePointerClick} label="Join-Quote" value={`${data.ratios?.join_request_per_event_view ?? 0}%`} sub="Join-Anfragen je Event-Aufruf" />
+          </div>
+
+          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <KPI icon={Users} label="iOS" value={platforms.get('iOS')?.active_users ?? 0} sub={`aktive Analytics-Geräte · ${platforms.get('iOS')?.sessions ?? 0} Sitzungen`} />
+            <KPI icon={Users} label="Android" value={platforms.get('Android')?.active_users ?? 0} sub={`aktive Analytics-Geräte · ${platforms.get('Android')?.sessions ?? 0} Sitzungen`} />
           </div>
 
           <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
