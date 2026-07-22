@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { Activity, CalendarCheck, ExternalLink, MousePointerClick, RefreshCw, ShieldCheck, Users } from 'lucide-react'
+import { Activity, CalendarCheck, Clock3, ExternalLink, MessageCircle, MousePointerClick, RefreshCw, ShieldCheck, Users } from 'lucide-react'
 import { getApiErrorMessage, getProductAnalytics } from '../api'
 import { Badge, ErrorBanner } from '../adminUi'
 import { formatDate } from '../adminFormat'
@@ -11,11 +11,70 @@ interface ProductAnalytics {
   days: number
   refreshed_at?: string
   required_settings?: string[]
-  summary?: { active_users: number; sessions: number; events: number }
-  events?: { event_name: string; label: string; count: number; users: number }[]
-  platforms?: { platform: 'iOS' | 'Android'; active_users: number; sessions: number; events: number }[]
+  summary?: {
+    active_users: number
+    sessions: number
+    events: number
+    new_users: number
+    engaged_sessions: number
+    engagement_rate: number
+    average_session_seconds: number
+    engagement_seconds: number
+    sessions_per_user: number
+  }
+  events?: {
+    event_name: string
+    label: string
+    count: number
+    users: number
+    backend_count: number | null
+    platforms: Record<'iOS' | 'Android', { count: number; users: number }>
+  }[]
+  platforms?: {
+    platform: 'iOS' | 'Android'
+    active_users: number
+    new_users?: number
+    sessions: number
+    events: number
+    engaged_sessions?: number
+    engagement_rate?: number
+    average_session_seconds?: number
+    engagement_seconds?: number
+    sessions_per_user?: number
+  }[]
+  versions?: { platform: 'iOS' | 'Android'; version: string; active_users: number; sessions: number; events: number }[]
+  screens?: { platform: 'iOS' | 'Android'; screen_name: string; views: number; users: number }[]
+  new_returning?: Record<'iOS' | 'Android', { new: number; returning: number }>
+  category_interests?: {
+    category: string
+    views: number
+    viewers: number
+    creates: number
+    joins: number
+    platforms: Record<'iOS' | 'Android', number>
+  }[]
+  custom_dimensions?: { configured: string[]; missing: string[] }
+  fundamentals?: {
+    period_start: string
+    registrations: number
+    registration_cohort_onboarded: number
+    onboarding_completions: number
+    onboarding_rate: number
+    events_created: number
+    join_requests: number
+    join_requests_accepted: number
+    join_acceptance_rate: number
+    participants_added: number
+    chat_messages: number
+    safe_walks_started: number
+  }
   daily?: ({ date: string; total: number } & Record<string, number | string>)[]
-  ratios?: { onboarding_per_signup: number; join_request_per_event_view: number }
+  ratios?: {
+    onboarding_per_signup: number
+    analytics_onboarding_per_signup: number
+    join_request_per_event_view: number
+    join_acceptance: number
+  }
   privacy_note?: string
 }
 
@@ -38,6 +97,14 @@ function dateLabel(value: string) {
   return new Date(`${value}T00:00:00`).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })
 }
 
+function durationLabel(value: number | undefined) {
+  const seconds = Math.max(0, Math.round(value ?? 0))
+  if (seconds < 60) return `${seconds} Sek.`
+  const minutes = Math.floor(seconds / 60)
+  const remainder = seconds % 60
+  return remainder ? `${minutes} Min. ${remainder} Sek.` : `${minutes} Min.`
+}
+
 export default function ProductAnalyticsPage() {
   const [days, setDays] = useState(30)
   const { data, isLoading, error, refetch, isFetching } = useQuery<ProductAnalytics>({
@@ -49,6 +116,12 @@ export default function ProductAnalyticsPage() {
   const daily = (data?.daily ?? []).map((row) => ({ ...row, label: dateLabel(String(row.date)) }))
   const events = [...(data?.events ?? [])].sort((a, b) => b.count - a.count)
   const platforms = new Map((data?.platforms ?? []).map((platform) => [platform.platform, platform]))
+  const fundamentals = data?.fundamentals
+  const screensByPlatform = (platform: 'iOS' | 'Android') => (data?.screens ?? [])
+    .filter((screen) => screen.platform === platform)
+    .slice(0, 8)
+  const versionsByPlatform = (platform: 'iOS' | 'Android') => (data?.versions ?? [])
+    .filter((version) => version.platform === platform)
 
   return (
     <div className="p-8">
@@ -111,17 +184,65 @@ export default function ProductAnalyticsPage() {
         </div>
       ) : data?.configured ? (
         <>
-          <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <KPI icon={Users} label="Aktive Analytics-Geräte" value={data.summary?.active_users ?? 0} sub={`letzte ${data.days} Tage · keine Accounts`} />
             <KPI icon={Activity} label="Sitzungen" value={data.summary?.sessions ?? 0} sub="Firebase Sessions" />
-            <KPI icon={MousePointerClick} label="Ereignisse" value={data.summary?.events ?? 0} sub="alle Analytics-Ereignisse" />
-            <KPI icon={CalendarCheck} label="Onboarding-Quote" value={`${data.ratios?.onboarding_per_signup ?? 0}%`} sub="Abschlüsse je Registrierung" />
-            <KPI icon={MousePointerClick} label="Join-Quote" value={`${data.ratios?.join_request_per_event_view ?? 0}%`} sub="Join-Anfragen je Event-Aufruf" />
+            <KPI icon={Activity} label="Engagierte Sitzungen" value={data.summary?.engaged_sessions ?? 0} sub={`${data.summary?.engagement_rate ?? 0}% der Sitzungen`} />
+            <KPI icon={Clock3} label="Ø Sitzungsdauer" value={durationLabel(data.summary?.average_session_seconds)} sub={`${data.summary?.sessions_per_user ?? 0} Sitzungen je Analytics-Gerät`} />
           </div>
 
+          <section className="mb-6 rounded-xl border border-blue-200 bg-blue-50/50 p-5">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-gray-900">Verlässliche Produktbasis</h3>
+                  <Badge className="bg-blue-100 text-blue-800">Hostly Backend</Badge>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">Echte Accounts und erfolgreiche Serveraktionen, Testnutzer ausgeschlossen</p>
+              </div>
+              <p className="text-xs text-gray-500">Zeitraum ab {formatDate(fundamentals?.period_start)}</p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+              <KPI icon={CalendarCheck} label="Onboarding-Quote" value={`${fundamentals?.onboarding_rate ?? 0}%`} sub={`${fundamentals?.registration_cohort_onboarded ?? 0} von ${fundamentals?.registrations ?? 0} Registrierungen abgeschlossen`} />
+              <KPI icon={MousePointerClick} label="Join-Akzeptanz" value={`${fundamentals?.join_acceptance_rate ?? 0}%`} sub={`${fundamentals?.join_requests_accepted ?? 0} von ${fundamentals?.join_requests ?? 0} Anfragen aktuell akzeptiert`} />
+              <KPI icon={CalendarCheck} label="Erstellte Events" value={fundamentals?.events_created ?? 0} sub="erfolgreich im Backend erstellt" />
+              <KPI icon={MessageCircle} label="Chatnachrichten" value={fundamentals?.chat_messages ?? 0} sub="echte Nutzernachrichten" />
+              <KPI icon={ShieldCheck} label="Safe Walks" value={fundamentals?.safe_walks_started ?? 0} sub="tatsächlich gestartet" />
+            </div>
+            <p className="mt-3 text-xs text-blue-800">Zusätzlich: {fundamentals?.onboarding_completions ?? 0} Onboarding-Abschlüsse im Zeitraum · {fundamentals?.participants_added ?? 0} neue bestätigte Teilnahmen.</p>
+          </section>
+
           <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <KPI icon={Users} label="iOS" value={platforms.get('iOS')?.active_users ?? 0} sub={`aktive Analytics-Geräte · ${platforms.get('iOS')?.sessions ?? 0} Sitzungen`} />
-            <KPI icon={Users} label="Android" value={platforms.get('Android')?.active_users ?? 0} sub={`aktive Analytics-Geräte · ${platforms.get('Android')?.sessions ?? 0} Sitzungen`} />
+            {(['iOS', 'Android'] as const).map((platformName) => {
+              const platform = platforms.get(platformName)
+              const versions = versionsByPlatform(platformName)
+              return (
+                <div key={platformName} className="rounded-xl border border-gray-200 bg-white p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{platformName}</p>
+                      <p className="mt-1 text-2xl font-bold text-gray-900">{platform?.active_users ?? 0}</p>
+                      <p className="text-xs text-gray-400">aktive Analytics-Geräte · {platform?.sessions ?? 0} Sitzungen</p>
+                    </div>
+                    <div className="rounded-lg bg-violet-50 p-2 text-violet-600"><Users size={18} /></div>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                    <div className="rounded-lg bg-gray-50 p-3"><p className="text-gray-400">Engagement</p><p className="mt-1 font-semibold text-gray-800">{platform?.engagement_rate ?? 0}%</p></div>
+                    <div className="rounded-lg bg-gray-50 p-3"><p className="text-gray-400">Ø Sitzung</p><p className="mt-1 font-semibold text-gray-800">{durationLabel(platform?.average_session_seconds)}</p></div>
+                  </div>
+                  <div className="mt-3 text-xs text-gray-500">
+                    {versions.length ? versions.map((version) => (
+                      <p key={version.version}><span className="font-medium text-gray-700">{version.version}</span> · {version.active_users} Geräte · {version.sessions} Sitzungen</p>
+                    )) : <p>Keine App-Version im Zeitraum gemeldet.</p>}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+            <p className="font-semibold">Firebase-Interaktionssignal: {data.ratios?.join_request_per_event_view ?? 0}%</p>
+            <p className="mt-1 text-xs leading-5 text-amber-800">{events.find((event) => event.event_name === 'event_join_request')?.count ?? 0} Join-Aktionen bei {events.find((event) => event.event_name === 'event_view')?.count ?? 0} Event-Aufrufen. Das ist bewusst keine Geschäftsquote: Opt-in, Wiederholungsaufrufe und bisher auch Gastgeber-Aufrufe beeinflussen den Wert.</p>
           </div>
 
           <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
@@ -157,13 +278,70 @@ export default function ProductAnalyticsPage() {
             </div>
           </div>
 
+          <section className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700">Interessen nach Event-Kategorie</h3>
+                <p className="mt-1 text-xs text-gray-400">Welche Kategorien angesehen, erstellt und angefragt werden</p>
+              </div>
+              <Badge className="bg-violet-50 text-violet-700">Firebase Custom Dimension</Badge>
+            </div>
+            {(data.category_interests ?? []).length ? (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {(data.category_interests ?? []).slice(0, 12).map((category) => (
+                  <div key={category.category} className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+                    <p className="font-medium text-gray-900">{category.category}</p>
+                    <p className="mt-2 text-xs text-gray-500">{category.views} Aufrufe von {category.viewers} Geräten</p>
+                    <p className="mt-1 text-xs text-gray-500">{category.creates} erstellt · {category.joins} Join-Aktionen</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                <p className="font-medium">Die Apps sind vorbereitet; GA4 muss die Dimensionen noch freischalten.</p>
+                <p className="mt-1 text-xs leading-5 text-amber-800">Nach Registrierung der Custom Dimension <span className="font-mono">category</span> und Auslieferung der neuen App-Version füllt sich dieser Bereich automatisch. Noch fehlend: {(data.custom_dimensions?.missing ?? ['category']).join(', ')}.</p>
+              </div>
+            )}
+          </section>
+
+          <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+            {(['iOS', 'Android'] as const).map((platformName) => (
+              <div key={platformName} className="rounded-xl border border-gray-200 bg-white p-5">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700">Beliebte Bereiche · {platformName}</h3>
+                    <p className="mt-1 text-xs text-gray-400">Screen-Aufrufe und eindeutige Analytics-Geräte</p>
+                  </div>
+                  <Badge className="bg-violet-50 text-violet-700">Firebase</Badge>
+                </div>
+                {screensByPlatform(platformName).length ? (
+                  <div className="space-y-3">
+                    {screensByPlatform(platformName).map((screen) => (
+                      <div key={screen.screen_name} className="flex items-center justify-between gap-4 border-b border-gray-50 pb-2 last:border-0 last:pb-0">
+                        <p className="min-w-0 truncate font-mono text-xs text-gray-700">{screen.screen_name}</p>
+                        <p className="shrink-0 text-xs text-gray-500"><span className="font-semibold text-gray-900">{screen.views}</span> Aufrufe · {screen.users} Geräte</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : <p className="text-sm text-gray-400">Noch keine Screen-Daten vorhanden.</p>}
+              </div>
+            ))}
+          </div>
+
           <div className="admin-table mb-6 overflow-x-auto rounded-xl border border-gray-200 bg-white">
-            <table className="w-full min-w-[520px] text-sm">
+            <div className="border-b border-gray-100 px-4 py-3">
+              <h3 className="text-sm font-semibold text-gray-700">Firebase-Abdeckung der Produktaktionen</h3>
+              <p className="mt-1 text-xs text-gray-400">Firebase zählt nur zustimmende App-Installationen; Hostly zeigt, wo möglich, die erfolgreiche Serveraktion daneben.</p>
+            </div>
+            <table className="w-full min-w-[820px] text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Produkt-Ereignis</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Ereignisse</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Nutzer</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Firebase</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Geräte</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">iOS</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Android</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Hostly</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -172,6 +350,9 @@ export default function ProductAnalyticsPage() {
                     <td className="px-4 py-3"><p className="font-medium text-gray-900">{event.label}</p><p className="font-mono text-xs text-gray-400">{event.event_name}</p></td>
                     <td className="px-4 py-3 text-right font-semibold text-gray-900">{event.count}</td>
                     <td className="px-4 py-3 text-right text-gray-600">{event.users}</td>
+                    <td className="px-4 py-3 text-right text-gray-600">{event.platforms?.iOS?.count ?? 0}</td>
+                    <td className="px-4 py-3 text-right text-gray-600">{event.platforms?.Android?.count ?? 0}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-blue-700">{event.backend_count ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>
