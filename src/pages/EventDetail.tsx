@@ -5,6 +5,13 @@ import { formatDate } from '../adminFormat'
 import { Badge, DetailRow, ErrorBanner, Section } from '../adminUi'
 import { SAFETY_STATUS_LABELS, SAFETY_STATUS_STYLES } from '../safeWalk'
 import { ArrowLeft, Ban, MapPin, Trash2 } from 'lucide-react'
+import {
+  REPORT_STATUS_STYLES,
+  reportReasonLabel,
+  reportStatusLabel,
+  reportTargetType,
+  splitReportDetails,
+} from '../reportFormat'
 
 interface CompactUser {
   id: number
@@ -19,12 +26,15 @@ interface CompactUser {
 interface Report {
   id: number
   reason: string
+  details: string
   status: string
   created_at: string
   reporter_id: number
   reporter_email: string
   reported_user_id: number | null
   reported_user_email: string | null
+  event_id: number | null
+  event_title: string | null
 }
 
 interface EventDetail {
@@ -336,10 +346,16 @@ export default function EventDetailPage() {
               ) : event.reports.map((report) => (
                 <Link key={report.id} to={`/reports/${report.id}`} className="block border-b border-gray-100 px-4 py-3 last:border-0 hover:bg-gray-50">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-medium text-gray-900">{report.reason}</p>
-                    <Badge className={report.status === 'open' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}>{report.status}</Badge>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-900">{reportTargetType(report)}</p>
+                      <p className="mt-0.5 text-xs text-gray-600">Problem: {reportReasonLabel(report.reason)}</p>
+                    </div>
+                    <Badge className={REPORT_STATUS_STYLES[report.status] || 'bg-gray-100 text-gray-600'}>{reportStatusLabel(report.status)}</Badge>
                   </div>
-                  <p className="text-xs text-gray-400">{formatDate(report.created_at, true)} · {report.reporter_email}</p>
+                  {splitReportDetails(report.details).userDetails && (
+                    <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm text-gray-500">{splitReportDetails(report.details).userDetails}</p>
+                  )}
+                  <p className="mt-1 text-xs text-gray-400">Gemeldet von {report.reporter_email} · {formatDate(report.created_at, true)}</p>
                 </Link>
               ))}
             </div>

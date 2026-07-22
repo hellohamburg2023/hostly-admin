@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useAuth } from './useAuth'
+import { getStats } from './api'
 import { BrandLogo } from './BrandLogo'
 import {
   LayoutDashboard, Users, CalendarDays, AlertTriangle,
@@ -30,6 +32,12 @@ export default function Layout() {
   const navigate = useNavigate()
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
+  const { data: stats } = useQuery<{ reports: { open: number } }>({
+    queryKey: ['stats'],
+    queryFn: getStats,
+    refetchInterval: 30_000,
+  })
+  const newReportCount = stats?.reports.open ?? 0
 
   useEffect(() => {
     setMenuOpen(false)
@@ -90,7 +98,15 @@ export default function Layout() {
               }
             >
               <Icon size={16} />
-              {label}
+              <span className="min-w-0 flex-1">{label}</span>
+              {to === '/reports' && newReportCount > 0 && (
+                <span
+                  aria-label={`${newReportCount} neue ${newReportCount === 1 ? 'Meldung' : 'Meldungen'}`}
+                  className="inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
+                >
+                  {newReportCount > 99 ? '99+' : newReportCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>

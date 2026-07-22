@@ -5,6 +5,15 @@ import { getApiErrorMessage, getReports, pageResults, reportAction } from '../ap
 import { formatDate } from '../adminFormat'
 import { Badge, EmptyState, ErrorBanner, Pagination } from '../adminUi'
 import { Eye, Search } from 'lucide-react'
+import {
+  REPORT_STATUS_STYLES,
+  reportDecisionLabel,
+  reportReasonLabel,
+  reportStatusLabel,
+  reportTargetLabel,
+  reportTargetType,
+  splitReportDetails,
+} from '../reportFormat'
 
 interface Report {
   id: number
@@ -32,33 +41,17 @@ interface Page<T> {
   previous?: string | null
 }
 
-const STATUS_STYLES: Record<string, string> = {
-  open: 'bg-red-100 text-red-700',
-  reviewing: 'bg-amber-100 text-amber-700',
-  resolved: 'bg-green-100 text-green-700',
-  dismissed: 'bg-gray-100 text-gray-500',
-}
-
 const STATUS_DE: Record<string, string> = {
-  open: 'Offen',
+  open: 'Neu',
   reviewing: 'In Prüfung',
-  resolved: 'Gelöst',
-  dismissed: 'Abgewiesen',
-}
-
-const DECISION_LABELS: Record<string, string> = {
-  needs_review: 'Prüfung gestartet',
-  no_violation: 'Kein Verstoß',
-  violation_confirmed: 'Verstoß bestätigt',
-  user_suspended: 'Nutzer gesperrt',
-  reporter_suspended: 'Reporter gesperrt',
-  event_cancelled: 'Event abgesagt',
+  resolved: 'Erledigt',
+  dismissed: 'Kein Verstoß',
 }
 
 const NEXT_ACTIONS: Record<string, { label: string; action: string; style: string }[]> = {
-  open: [{ label: 'Prüfen', action: 'reviewing', style: 'border-amber-300 text-amber-700 hover:bg-amber-50' }],
+  open: [{ label: 'Prüfung beginnen', action: 'reviewing', style: 'border-amber-300 text-amber-700 hover:bg-amber-50' }],
   reviewing: [
-    { label: 'Lösen', action: 'resolve', style: 'border-green-300 text-green-700 hover:bg-green-50' },
+    { label: 'Verstoß bestätigen', action: 'resolve', style: 'border-green-300 text-green-700 hover:bg-green-50' },
     { label: 'Kein Verstoß', action: 'dismiss', style: 'border-gray-300 text-gray-600 hover:bg-gray-50' },
   ],
 }
@@ -89,7 +82,10 @@ export default function ReportsPage() {
 
   const mutation = useMutation({
     mutationFn: ({ id, action }: { id: number; action: string }) => reportAction(id, { action }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['reports'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reports'] })
+      qc.invalidateQueries({ queryKey: ['stats'] })
+    },
   })
 
   const setFilter = (setter: (value: string) => void, value: string) => {
@@ -103,10 +99,13 @@ export default function ReportsPage() {
       : ''
 
   return (
-    <div className="p-8">
-      <div className="admin-page-header flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-gray-900">Meldungen</h2>
-        <span className="text-sm text-gray-500">{reports.length} angezeigt</span>
+    <div className="p-4 sm:p-8">
+      <div className="admin-page-header mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Meldungen von Nutzern</h2>
+          <p className="mt-1 text-sm text-gray-500">Prüfe, was gemeldet wurde und welches Problem die Person beschreibt.</p>
+        </div>
+        <span className="shrink-0 text-sm text-gray-500">{reports.length} auf dieser Seite</span>
       </div>
 
       <ErrorBanner message={errorMessage} />
@@ -131,20 +130,22 @@ export default function ReportsPage() {
           <input
             value={q}
             onChange={(e) => setFilter(setQ, e.target.value)}
-            placeholder="Grund, Details, E-Mail, Event"
+            placeholder="Problem, Beschreibung, Person oder Event"
             className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
         </div>
         <input
           value={reporter}
           onChange={(e) => setFilter(setReporter, e.target.value)}
-          placeholder="Reporter-ID"
+          aria-label="ID der meldenden Person"
+          placeholder="Meldende Person (ID)"
           className="w-32 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
         />
         <input
           value={reportedUser}
           onChange={(e) => setFilter(setReportedUser, e.target.value)}
-          placeholder="Gemeldet-ID"
+          aria-label="ID der gemeldeten Person"
+          placeholder="Gemeldete Person (ID)"
           className="w-32 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
         />
         <input
@@ -156,46 +157,64 @@ export default function ReportsPage() {
       </div>
 
       {isLoading ? (
-        <div className="text-gray-400">Laden...</div>
+        <div className="text-gray-400">Meldungen werden geladen …</div>
       ) : reports.length === 0 ? (
         <EmptyState>Keine Meldungen in dieser Auswahl</EmptyState>
       ) : (
         <div className="space-y-3">
-          {reports.map((report) => (
-            <div key={report.id} className="bg-white rounded-xl border border-gray-200 p-5">
+          {reports.map((report) => {
+            const { userDetails, chatContext } = splitReportDetails(report.details)
+            return (
+            <article key={report.id} className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5">
               <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
                 <div className="flex-1 min-w-0">
-                  <div className="mb-1 flex flex-wrap items-center gap-2">
-                    <Badge className={STATUS_STYLES[report.status] || STATUS_STYLES.open}>
-                      {STATUS_DE[report.status] || report.status}
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <Badge className={REPORT_STATUS_STYLES[report.status] || 'bg-gray-100 text-gray-600'}>
+                      {reportStatusLabel(report.status)}
                     </Badge>
+                    <Badge className="bg-violet-50 text-violet-700">{reportTargetType(report)}</Badge>
                     {report.moderation_decision && (
                       <Badge className="bg-blue-100 text-blue-700">
-                        {DECISION_LABELS[report.moderation_decision] || report.moderation_decision}
+                        {reportDecisionLabel(report.moderation_decision)}
                       </Badge>
                     )}
                     <span className="text-xs text-gray-400">{formatDate(report.created_at, true)}</span>
                   </div>
-                  <Link to={`/reports/${report.id}`} className="font-semibold text-gray-900 text-sm hover:text-violet-700">
-                    {report.reason}
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Gemeldet wurde</p>
+                  <Link to={`/reports/${report.id}`} className="mt-0.5 block text-base font-semibold text-gray-900 hover:text-violet-700">
+                    {reportTargetLabel(report)}
                   </Link>
-                  {report.details && <p className="text-sm text-gray-600 mt-1 mb-2 line-clamp-2">{report.details}</p>}
+                  <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2.5">
+                    <p className="text-xs font-semibold text-gray-500">Problem laut Nutzer</p>
+                    <p className="mt-0.5 text-sm font-semibold text-gray-900">{reportReasonLabel(report.reason)}</p>
+                    <p className={`mt-1 whitespace-pre-wrap text-sm ${userDetails ? 'text-gray-600' : 'italic text-gray-400'}`}>
+                      {userDetails || 'Keine zusätzliche Beschreibung angegeben.'}
+                    </p>
+                  </div>
+                  {chatContext && (
+                    <div className="mt-2 border-l-2 border-violet-300 pl-3">
+                      <p className="text-xs font-semibold text-violet-700">Gemeldete Nachricht</p>
+                      <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap text-sm text-gray-600">
+                        {chatContext.excerpt || 'Der Nachrichteninhalt wurde nicht mitgesendet.'}
+                      </p>
+                    </div>
+                  )}
                   {report.moderation_note && (
-                    <p className="text-xs text-blue-700 bg-blue-50 rounded-lg px-2 py-1 mb-2">
-                      Entscheidung: {report.moderation_note}
+                    <p className="mt-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                      <span className="font-semibold">Notiz zur Entscheidung:</span> {report.moderation_note}
                     </p>
                   )}
-                  <div className="text-xs text-gray-500 space-y-0.5">
+                  <div className="mt-3 space-y-0.5 text-xs text-gray-500">
                     <p>
-                      Von:{' '}
+                      Gemeldet von:{' '}
                       <Link to={`/users/${report.reporter_id}`} className="text-gray-700 hover:text-violet-700">
                         {report.reporter_username || report.reporter_email}
                       </Link>{' '}
-                      ({report.reporter_email})
+                      {report.reporter_username && `(${report.reporter_email})`}
                     </p>
                     {report.reported_user_id && (
                       <p>
-                        Gemeldeter Nutzer:{' '}
+                        Betroffene Person:{' '}
                         <Link to={`/users/${report.reported_user_id}`} className="text-gray-700 hover:text-violet-700">
                           {report.reported_user_email}
                         </Link>
@@ -215,10 +234,9 @@ export default function ReportsPage() {
                 <div className="flex w-full shrink-0 flex-wrap gap-2 sm:w-auto">
                   <Link
                     to={`/reports/${report.id}`}
-                    title="Kontext prüfen"
-                    className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors"
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
                   >
-                    <Eye size={14} />
+                    <Eye size={14} /> Details prüfen
                   </Link>
                   {(NEXT_ACTIONS[report.status] || []).map((action) => (
                     <button
@@ -231,8 +249,8 @@ export default function ReportsPage() {
                   ))}
                 </div>
               </div>
-            </div>
-          ))}
+            </article>
+          )})}
         </div>
       )}
       <Pagination data={page} onCursor={setCursor} />

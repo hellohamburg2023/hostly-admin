@@ -152,11 +152,11 @@ export default function EventsPage() {
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
         >
           <option value="">Alle Moderationsstände</option>
-          <option value="open_reports">Offene Meldungen</option>
+          <option value="open_reports">Neue Meldungen</option>
           <option value="reviewing_reports">Meldungen in Prüfung</option>
           <option value="reported">Alle Events mit Meldungen</option>
-          <option value="resolved_reports">Gelöste Meldungen</option>
-          <option value="dismissed_reports">Abgewiesene Meldungen</option>
+          <option value="resolved_reports">Erledigte Meldungen</option>
+          <option value="dismissed_reports">Meldungen ohne Verstoß</option>
           <option value="clean">Ohne Meldungen</option>
         </select>
       </div>
@@ -208,7 +208,7 @@ export default function EventsPage() {
                       </Badge>
                       {event.women_only && <Badge className="bg-pink-100 text-pink-600">Women only</Badge>}
                       {!event.counts_toward_activity && <Badge className="bg-sky-100 text-sky-700">Beta-Test</Badge>}
-                      {event.open_report_count > 0 && <Badge className="bg-red-100 text-red-700">{event.open_report_count} offen</Badge>}
+                      {event.open_report_count > 0 && <Badge className="bg-red-100 text-red-700">{event.open_report_count} neu</Badge>}
                       {event.reviewing_report_count > 0 && <Badge className="bg-amber-100 text-amber-700">{event.reviewing_report_count} in Prüfung</Badge>}
                       {event.report_count > 0 && <Badge className="bg-gray-100 text-gray-700">{event.report_count} Meldungen gesamt</Badge>}
                     </div>

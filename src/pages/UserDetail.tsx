@@ -4,6 +4,13 @@ import { deleteProfilePhoto, deleteUser, getApiErrorMessage, getUser, patchProfi
 import { activityLabel, formatDate } from '../adminFormat'
 import { Badge, DetailRow, ErrorBanner, Section } from '../adminUi'
 import { ArrowLeft, BellRing, ShieldCheck, ShieldOff, Tag, Trash2, UserCheck, UserX } from 'lucide-react'
+import {
+  REPORT_STATUS_STYLES,
+  reportReasonLabel,
+  reportStatusLabel,
+  reportTargetLabel,
+  splitReportDetails,
+} from '../reportFormat'
 
 interface CompactUser {
   id: number
@@ -29,6 +36,7 @@ interface AdminEvent {
 interface Report {
   id: number
   reason: string
+  details: string
   status: string
   created_at: string
   reporter_id: number
@@ -151,13 +159,14 @@ function ReportList({ reports }: { reports: Report[] }) {
       {reports.map((report) => (
         <Link key={report.id} to={`/reports/${report.id}`} className="block px-4 py-3 hover:bg-gray-50">
           <div className="flex items-center justify-between gap-3">
-            <p className="truncate text-sm font-medium text-gray-900">{report.reason}</p>
-            <Badge className={report.status === 'open' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}>{report.status}</Badge>
+            <p className="truncate text-sm font-medium text-gray-900">{reportTargetLabel(report)}</p>
+            <Badge className={REPORT_STATUS_STYLES[report.status] || 'bg-gray-100 text-gray-600'}>{reportStatusLabel(report.status)}</Badge>
           </div>
-          <p className="text-xs text-gray-400">
-            {formatDate(report.created_at, true)}
-            {report.event_title ? ` · ${report.event_title}` : ''}
-          </p>
+          <p className="mt-0.5 text-xs text-gray-600">Problem: {reportReasonLabel(report.reason)}</p>
+          {splitReportDetails(report.details).userDetails && (
+            <p className="mt-0.5 line-clamp-1 text-xs text-gray-400">{splitReportDetails(report.details).userDetails}</p>
+          )}
+          <p className="mt-0.5 text-xs text-gray-400">{formatDate(report.created_at, true)}</p>
         </Link>
       ))}
     </div>

@@ -332,7 +332,7 @@ export default function Dashboard() {
         <KPI icon={Activity} label="Aktiv 7 Tage" value={data.users.active_7d} sub={`${data.users.active_30d} in 30 Tagen`} color="green" />
         <KPI icon={TrendingUp} label="Neu diese Woche" value={data.users.new_this_week} sub={`${data.users.new_this_month} diesen Monat`} color="blue" />
         <KPI icon={CalendarDays} label="Events gesamt" value={data.events.total} color="green" />
-        <KPI icon={AlertTriangle} label="Offene Meldungen" value={data.reports.open} sub={`${data.reports.reviewing} in Prüfung`} color="red" />
+        <KPI icon={AlertTriangle} label="Neue Meldungen" value={data.reports.open} sub={`${data.reports.reviewing} in Prüfung`} color="red" />
         <KPI icon={Footprints} label="Safety Sessions live" value={liveSafetySessions} sub={`${analytics?.safe_walks.needs_attention ?? data.safe_walks.escalated ?? 0} mit Handlungsbedarf`} color="amber" />
       </div>
 
