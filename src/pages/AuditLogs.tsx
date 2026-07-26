@@ -111,7 +111,7 @@ export default function AuditLogsPage() {
       ) : logs.length === 0 ? (
         <EmptyState>Keine Audit-Einträge gefunden</EmptyState>
       ) : (
-        <div className="admin-table overflow-x-auto rounded-xl border border-gray-200 bg-white">
+        <div className="admin-table admin-mobile-table overflow-x-auto rounded-xl border border-gray-200 bg-white">
           <table className="w-full min-w-[1000px] text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
@@ -128,8 +128,8 @@ export default function AuditLogsPage() {
                 const url = targetUrl(log)
                 return (
                   <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 text-xs text-gray-500">{formatDate(log.created_at, true)}</td>
-                    <td className="px-4 py-3">
+                    <td data-label="Zeit" className="px-4 py-3 text-xs text-gray-500">{formatDate(log.created_at, true)}</td>
+                    <td data-label="Admin" className="px-4 py-3">
                       {log.actor_id ? (
                         <Link to={`/users/${log.actor_id}`} className="text-gray-700 hover:text-violet-700">
                           {log.actor_display || log.actor_email}
@@ -138,8 +138,8 @@ export default function AuditLogsPage() {
                         <span className="text-gray-500">{log.actor_email || 'System'}</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 font-medium text-gray-900">{log.action}</td>
-                    <td className="px-4 py-3">
+                    <td data-label="Aktion" className="px-4 py-3 font-medium text-gray-900">{log.action}</td>
+                    <td data-label="Ziel" className="px-4 py-3">
                       {url ? (
                         <Link to={url} className="text-gray-700 hover:text-violet-700">
                           {log.target_type}:{log.target_id}
@@ -149,8 +149,8 @@ export default function AuditLogsPage() {
                       )}
                       {log.target_repr && <p className="text-xs text-gray-400">{log.target_repr}</p>}
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">{log.ip_address || '-'}</td>
-                    <td className="min-w-80 px-4 py-3 align-top">
+                    <td data-label="IP" className="px-4 py-3 text-xs text-gray-500">{log.ip_address || '-'}</td>
+                    <td data-label="Meta" className="min-w-80 px-4 py-3 align-top">
                       <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-5 text-gray-500">
                         {JSON.stringify(log.metadata, null, 2)}
                       </pre>

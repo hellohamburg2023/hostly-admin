@@ -328,8 +328,8 @@ export default function ProductAnalyticsPage() {
             ))}
           </div>
 
-          <div className="admin-table mb-6 overflow-x-auto rounded-xl border border-gray-200 bg-white">
-            <div className="border-b border-gray-100 px-4 py-3">
+          <div className="admin-table admin-mobile-table mb-6 overflow-x-auto rounded-xl border border-gray-200 bg-white">
+            <div className="admin-mobile-table-heading border-b border-gray-100 px-4 py-3">
               <h3 className="text-sm font-semibold text-gray-700">Firebase-Abdeckung der Produktaktionen</h3>
               <p className="mt-1 text-xs text-gray-400">Firebase zählt nur zustimmende App-Installationen; Hostly zeigt, wo möglich, die erfolgreiche Serveraktion daneben.</p>
             </div>
@@ -347,12 +347,12 @@ export default function ProductAnalyticsPage() {
               <tbody className="divide-y divide-gray-50">
                 {events.map((event) => (
                   <tr key={event.event_name}>
-                    <td className="px-4 py-3"><p className="font-medium text-gray-900">{event.label}</p><p className="font-mono text-xs text-gray-400">{event.event_name}</p></td>
-                    <td className="px-4 py-3 text-right font-semibold text-gray-900">{event.count}</td>
-                    <td className="px-4 py-3 text-right text-gray-600">{event.users}</td>
-                    <td className="px-4 py-3 text-right text-gray-600">{event.platforms?.iOS?.count ?? 0}</td>
-                    <td className="px-4 py-3 text-right text-gray-600">{event.platforms?.Android?.count ?? 0}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-blue-700">{event.backend_count ?? '—'}</td>
+                    <td data-label="Produkt-Ereignis" className="px-4 py-3"><p className="font-medium text-gray-900">{event.label}</p><p className="font-mono text-xs text-gray-400">{event.event_name}</p></td>
+                    <td data-label="Firebase" className="px-4 py-3 text-right font-semibold text-gray-900">{event.count}</td>
+                    <td data-label="Geräte" className="px-4 py-3 text-right text-gray-600">{event.users}</td>
+                    <td data-label="iOS" className="px-4 py-3 text-right text-gray-600">{event.platforms?.iOS?.count ?? 0}</td>
+                    <td data-label="Android" className="px-4 py-3 text-right text-gray-600">{event.platforms?.Android?.count ?? 0}</td>
+                    <td data-label="Hostly" className="px-4 py-3 text-right font-semibold text-blue-700">{event.backend_count ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>

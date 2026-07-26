@@ -129,7 +129,7 @@ export default function InterestsPage() {
 
       <ErrorBanner message={errorMessage} />
 
-      <div className="admin-table overflow-x-auto rounded-xl border border-gray-200 bg-white">
+      <div className="admin-table admin-mobile-table overflow-x-auto rounded-xl border border-gray-200 bg-white">
         {isLoading ? (
           <div className="p-8 text-center text-gray-400">Laden…</div>
         ) : (
@@ -145,11 +145,11 @@ export default function InterestsPage() {
             <tbody className="divide-y divide-gray-50">
               {adding && (
                 <tr className="bg-violet-50">
-                  <td className="px-4 py-2">
+                  <td data-label="Name" className="px-4 py-2">
                     <input autoFocus value={newValues.name} onChange={e => setNewValues(v => ({ ...v, name: e.target.value }))} placeholder="Name des Interesses" className="w-full rounded border border-gray-300 px-2 py-1 text-sm" />
                     <span className="mt-1 block text-xs text-gray-500">Die technische Kennung wird automatisch erstellt.</span>
                   </td>
-                  <td className="px-4 py-2">
+                  <td data-label="Gruppe" className="px-4 py-2">
                     <input
                       list="groups-list"
                       value={newValues.group_title}
@@ -163,7 +163,7 @@ export default function InterestsPage() {
                     />
                     <datalist id="groups-list">{groups.map(g => <option key={g} value={g} />)}</datalist>
                   </td>
-                  <td className="px-4 py-2">
+                  <td data-label="Reihenfolge" className="px-4 py-2">
                     <InterestSortOrderSelect
                       interests={interests}
                       groupTitle={newValues.group_title}
@@ -171,7 +171,7 @@ export default function InterestsPage() {
                       onChange={sort_order => setNewValues(value => ({ ...value, sort_order }))}
                     />
                   </td>
-                  <td className="px-4 py-2 flex gap-1">
+                  <td data-label="Aktionen" className="px-4 py-2 flex gap-1">
                     <button
                       disabled={!newValues.name.trim() || !newValues.group_title.trim() || newValues.sort_order < 1 || newSortOrderTaken}
                       onClick={() => createMut.mutate({ ...newValues, slug: slugFromName(newValues.name) })}
@@ -183,10 +183,10 @@ export default function InterestsPage() {
               )}
               {interests.map((i) => (
                 <tr key={i.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">
+                  <td data-label="Name" className="px-4 py-3 font-medium text-gray-900">
                     {editId === i.id ? <input autoFocus value={editValues.name} onChange={e => setEditValues(v => ({ ...v, name: e.target.value }))} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" /> : i.name}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">
+                  <td data-label="Gruppe" className="px-4 py-3 text-gray-600">
                     {editId === i.id ? (
                       <input
                         value={editValues.group_title}
@@ -203,7 +203,7 @@ export default function InterestsPage() {
                       />
                     ) : <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs">{i.group_title}</span>}
                   </td>
-                  <td className="px-4 py-3 text-gray-500">
+                  <td data-label="Reihenfolge" className="px-4 py-3 text-gray-500">
                     {editId === i.id ? (
                       <InterestSortOrderSelect
                         interests={interests}
@@ -214,7 +214,7 @@ export default function InterestsPage() {
                       />
                     ) : `Position ${i.sort_order}`}
                   </td>
-                  <td className="px-4 py-3">
+                  <td data-label="Aktionen" className="px-4 py-3">
                     <div className="flex gap-1">
                       {editId === i.id ? (
                         <>

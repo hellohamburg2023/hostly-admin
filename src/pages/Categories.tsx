@@ -67,7 +67,7 @@ export default function CategoriesPage() {
 
       <ErrorBanner message={errorMessage} />
 
-      <div className="admin-table overflow-x-auto rounded-xl border border-gray-200 bg-white">
+      <div className="admin-table admin-mobile-table overflow-x-auto rounded-xl border border-gray-200 bg-white">
         {isLoading ? (
           <div className="p-8 text-center text-gray-400">Laden…</div>
         ) : (
@@ -84,16 +84,16 @@ export default function CategoriesPage() {
             <tbody className="divide-y divide-gray-50">
               {adding && (
                 <tr className="bg-violet-50">
-                  <td className="px-4 py-2">
+                  <td data-label="Name" className="px-4 py-2">
                     <input autoFocus value={newValues.name} onChange={e => setNewValues(v => ({ ...v, name: e.target.value }))} placeholder="Name der Kategorie" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
                     <span className="mt-1 block text-xs text-gray-500">Die technische Kennung wird automatisch erstellt.</span>
                   </td>
-                  <td className="px-4 py-2">
+                  <td data-label="Icon" className="px-4 py-2">
                     <SystemIconSelect value={newValues.icon} onChange={icon => setNewValues(v => ({ ...v, icon }))} />
                   </td>
-                  <td className="px-4 py-2 text-gray-400">—</td>
-                  <td className="px-4 py-2 text-gray-400">—</td>
-                  <td className="px-4 py-2 flex gap-1">
+                  <td data-label="Events" className="px-4 py-2 text-gray-400">—</td>
+                  <td data-label="Abonnenten" className="px-4 py-2 text-gray-400">—</td>
+                  <td data-label="Aktionen" className="px-4 py-2 flex gap-1">
                     <button
                       disabled={!newValues.name.trim() || !newValues.icon}
                       onClick={() => createMut.mutate({ ...newValues, slug: slugFromName(newValues.name) })}
@@ -105,10 +105,10 @@ export default function CategoriesPage() {
               )}
               {categories.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">
+                  <td data-label="Name" className="px-4 py-3">
                     {editId === c.id ? <input autoFocus value={editValues.name} onChange={e => setEditValues(v => ({ ...v, name: e.target.value }))} className="w-full border border-gray-300 rounded px-2 py-1 text-sm" /> : c.name}
                   </td>
-                  <td className="px-4 py-3">
+                  <td data-label="Icon" className="px-4 py-3">
                     {editId === c.id ? (
                       <SystemIconSelect value={editValues.icon} onChange={icon => setEditValues(v => ({ ...v, icon }))} />
                     ) : (
@@ -117,9 +117,9 @@ export default function CategoriesPage() {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{c.event_count}</td>
-                  <td className="px-4 py-3 text-gray-600">{c.follower_count}</td>
-                  <td className="px-4 py-3">
+                  <td data-label="Events" className="px-4 py-3 text-gray-600">{c.event_count}</td>
+                  <td data-label="Abonnenten" className="px-4 py-3 text-gray-600">{c.follower_count}</td>
+                  <td data-label="Aktionen" className="px-4 py-3">
                     <div className="flex gap-1">
                       {editId === c.id ? (
                         <>

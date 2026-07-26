@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { deleteUser, getApiErrorMessage, getUsers, pageResults, patchUser } from '../api'
-import { activityLabel, formatDate } from '../adminFormat'
+import { accountStatus, activityLabel, formatDate } from '../adminFormat'
 import { Badge, ErrorBanner, Pagination } from '../adminUi'
 import { Eye, Search, Tag, Trash2, UserCheck, UserX } from 'lucide-react'
 
@@ -19,6 +19,7 @@ interface User {
   last_active_at: string | null
   inactive_days: number | null
   email_verified_at: string | null
+  suspended_at: string | null
   profile_display_name: string
   profile_city: string
   profile_verification_status: string
@@ -46,7 +47,7 @@ const BADGE: Record<string, string> = {
 
 export default function UsersPage() {
   const [q, setQ] = useState('')
-  const [activeFilter, setActiveFilter] = useState('')
+  const [accessStatusFilter, setAccessStatusFilter] = useState('')
   const [verificationFilter, setVerificationFilter] = useState('')
   const [activityFilter, setActivityFilter] = useState('')
   const [accountState, setAccountState] = useState('')
@@ -56,16 +57,15 @@ export default function UsersPage() {
 
   const params: Record<string, string> = {}
   if (q) params.q = q
-  if (activeFilter) params.is_active = activeFilter
+  if (accessStatusFilter) params.access_status = accessStatusFilter
   if (verificationFilter) params.verification_status = verificationFilter
   if (activityFilter) params.activity = activityFilter
   if (testUserFilter) params.is_test_user = testUserFilter
   if (accountState) params.account_state = accountState
-  else if (activeFilter === 'false') params.account_state = 'registered'
   if (cursor) params.cursor = cursor
 
   const { data, isLoading, error } = useQuery<Page<User> | User[]>({
-    queryKey: ['users', q, activeFilter, verificationFilter, activityFilter, accountState, testUserFilter, cursor],
+    queryKey: ['users', q, accessStatusFilter, verificationFilter, activityFilter, accountState, testUserFilter, cursor],
     queryFn: () => getUsers(params),
   })
   const users = pageResults<User>(data)
@@ -130,13 +130,15 @@ export default function UsersPage() {
           <option value="deleted">Gelöscht</option>
         </select>
         <select
-          value={activeFilter}
-          onChange={(e) => setFilter(setActiveFilter, e.target.value)}
+          value={accessStatusFilter}
+          onChange={(e) => setFilter(setAccessStatusFilter, e.target.value)}
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
         >
-          <option value="">Alle Accounts</option>
-          <option value="true">Aktiv</option>
-          <option value="false">Gesperrt</option>
+          <option value="">Alle Accountstatus</option>
+          <option value="active">Aktiv</option>
+          <option value="email_pending">E-Mail-Bestätigung ausstehend</option>
+          <option value="suspended">Gesperrt</option>
+          <option value="inactive">Inaktiv</option>
         </select>
         <select
           value={testUserFilter}
@@ -204,11 +206,7 @@ export default function UsersPage() {
                   </Link>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1">
-                  {u.is_deleted ? (
-                    <Badge className="bg-gray-200 text-gray-700">Gelöscht</Badge>
-                  ) : (
-                    <Badge className={u.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}>{u.is_active ? 'Aktiv' : 'Gesperrt'}</Badge>
-                  )}
+                  <Badge className={accountStatus(u).className}>{accountStatus(u).label}</Badge>
                   {u.is_test_user && <Badge className="bg-violet-100 text-violet-700">Testuser</Badge>}
                   {u.profile_verification_status && <Badge className={BADGE[u.profile_verification_status] || BADGE.unverified}>{u.profile_hostly_verified ? 'Hostly-verifiziert' : u.profile_verification_status}</Badge>}
                   {u.is_superuser && <Badge className="bg-violet-100 text-violet-700">Superuser</Badge>}
@@ -217,7 +215,7 @@ export default function UsersPage() {
                   <span>{u.hosted_event_count} Events · {u.participation_count} Teilnahmen</span>
                   <div className="flex shrink-0 gap-1">
                     <button onClick={() => mutation.mutate({ id: u.id, patch: { is_test_user: !u.is_test_user } })} title={u.is_test_user ? 'Testuser-Markierung entfernen' : 'Als Testuser markieren'} className={`rounded-lg p-2 ${u.is_test_user ? 'bg-violet-100 text-violet-700' : 'text-gray-500 hover:bg-violet-50 hover:text-violet-700'}`}><Tag size={15} /></button>
-                    {!u.is_superuser && !u.is_deleted && <button onClick={() => mutation.mutate({ id: u.id, patch: { is_active: !u.is_active } })} title={u.is_active ? 'Sperren' : 'Entsperren'} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800">{u.is_active ? <UserX size={15} /> : <UserCheck size={15} />}</button>}
+                    {!u.is_superuser && !u.is_deleted && Boolean(u.is_active || u.email_verified_at || u.suspended_at) && <button onClick={() => mutation.mutate({ id: u.id, patch: { is_active: !u.is_active } })} title={u.is_active ? 'Sperren' : 'Entsperren'} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800">{u.is_active ? <UserX size={15} /> : <UserCheck size={15} />}</button>}
                     {!u.is_superuser && !u.is_deleted && <button type="button" onClick={() => { const name = u.profile_display_name || u.username || u.email; const confirmation = prompt(`Nutzer „${name}“ endgültig löschen? Konto, Events, Dateien und zugehörige Daten werden entfernt.\n\nTippe LÖSCHEN zur Bestätigung.`); if (confirmation === 'LÖSCHEN') deleteMutation.mutate(u.id) }} disabled={deleteMutation.isPending} title="Nutzer endgültig löschen" className="rounded-lg p-2 text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"><Trash2 size={15} /></button>}
                   </div>
                 </div>
@@ -264,13 +262,7 @@ export default function UsersPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
-                      {u.is_deleted ? (
-                        <Badge className="bg-gray-200 text-gray-700">Gelöscht</Badge>
-                      ) : (
-                        <Badge className={u.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}>
-                          {u.is_active ? 'Aktiv' : 'Gesperrt'}
-                        </Badge>
-                      )}
+                      <Badge className={accountStatus(u).className}>{accountStatus(u).label}</Badge>
                       {u.is_test_user && <Badge className="bg-violet-100 text-violet-700">Testuser</Badge>}
                       {u.profile_verification_status && (
                         <Badge className={BADGE[u.profile_verification_status] || BADGE.unverified}>
@@ -300,7 +292,7 @@ export default function UsersPage() {
                       >
                         <Tag size={14} />
                       </button>
-                      {!u.is_superuser && !u.is_deleted && (
+                      {!u.is_superuser && !u.is_deleted && Boolean(u.is_active || u.email_verified_at || u.suspended_at) && (
                         <button
                           onClick={() => mutation.mutate({ id: u.id, patch: { is_active: !u.is_active } })}
                           title={u.is_active ? 'Sperren' : 'Entsperren'}

@@ -1,7 +1,7 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { deleteProfilePhoto, deleteUser, getApiErrorMessage, getUser, patchProfile, patchUser } from '../api'
-import { activityLabel, formatDate } from '../adminFormat'
+import { accountStatus, activityLabel, formatDate } from '../adminFormat'
 import { Badge, DetailRow, ErrorBanner, Section } from '../adminUi'
 import { ArrowLeft, BellRing, ShieldCheck, ShieldOff, Tag, Trash2, UserCheck, UserX } from 'lucide-react'
 import {
@@ -60,6 +60,7 @@ interface UserDetail {
   last_active_at: string | null
   inactive_days: number | null
   email_verified_at: string | null
+  suspended_at: string | null
   onboarding_completed_at: string | null
   accepted_rules_at: string | null
   accepted_rules_version: string
@@ -232,6 +233,7 @@ export default function UserDetailPage() {
 
   if (isLoading) return <div className="p-8 text-gray-400">Laden...</div>
   if (!user) return <div className="p-8 text-gray-400">Nutzer nicht gefunden</div>
+  const currentAccountStatus = accountStatus(user)
 
   return (
     <div className="p-8">
@@ -254,11 +256,7 @@ export default function UserDetailPage() {
               <h2 className="text-xl font-bold text-gray-900">{user.profile_display_name || user.username}</h2>
               <p className="break-all text-sm text-gray-500">{user.email}</p>
               <div className="mt-2 flex flex-wrap gap-1">
-                {user.is_deleted ? (
-                  <Badge className="bg-gray-200 text-gray-700">Gelöscht</Badge>
-                ) : (
-                  <Badge className={user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}>{user.is_active ? 'Aktiv' : 'Gesperrt'}</Badge>
-                )}
+                <Badge className={currentAccountStatus.className}>{currentAccountStatus.label}</Badge>
                 {user.is_test_user && (
                   <Badge className="bg-violet-100 text-violet-700">Testuser</Badge>
                 )}
@@ -290,7 +288,7 @@ export default function UserDetailPage() {
               <Tag size={15} />
               {user.is_test_user ? 'Testuser-Markierung entfernen' : 'Als Testuser markieren'}
             </button>
-            {!user.is_superuser && !user.is_deleted && (
+            {!user.is_superuser && !user.is_deleted && Boolean(user.is_active || user.email_verified_at || user.suspended_at) && (
               <button
                 onClick={() => mutation.mutate({ is_active: !user.is_active })}
                 className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
@@ -326,7 +324,7 @@ export default function UserDetailPage() {
               <dl className="grid grid-cols-1 gap-4">
                 <DetailRow label="Letzte Aktivität" value={`${activityLabel(user.inactive_days)} · ${formatDate(user.last_active_at || user.last_login, true)}`} />
                 <DetailRow label="Registriert" value={formatDate(user.date_joined, true)} />
-                <DetailRow label="E-Mail verifiziert" value={formatDate(user.email_verified_at, true)} />
+                <DetailRow label="E-Mail-Bestätigung" value={user.email_verified_at ? `Bestätigt am ${formatDate(user.email_verified_at, true)}` : 'Ausstehend'} />
                 <DetailRow label="Onboarding" value={formatDate(user.onboarding_completed_at, true)} />
                 <DetailRow label="Regeln akzeptiert" value={user.accepted_rules_at ? `${formatDate(user.accepted_rules_at, true)} · Version ${user.accepted_rules_version || '-'}` : 'Noch nicht akzeptiert'} />
                 <DetailRow label="Account gelöscht" value={user.deleted_at ? formatDate(user.deleted_at, true) : 'Nein'} />

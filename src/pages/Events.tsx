@@ -161,7 +161,7 @@ export default function EventsPage() {
         </select>
       </div>
 
-      <div className="admin-table overflow-x-auto rounded-xl border border-gray-200 bg-white">
+      <div className="admin-table admin-mobile-table overflow-x-auto rounded-xl border border-gray-200 bg-white">
         {isLoading ? (
           <div className="p-8 text-center text-gray-400">Laden...</div>
         ) : (
@@ -178,19 +178,19 @@ export default function EventsPage() {
             <tbody className="divide-y divide-gray-50">
               {events.map((event) => (
                 <tr key={event.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3">
+                  <td data-label="Event" className="px-4 py-3">
                     <Link to={`/events/${event.id}`} className="font-medium text-gray-900 hover:text-violet-700">
                       {event.title}
                     </Link>
                     <p className="text-xs text-gray-400">{event.category_name || 'Keine Kategorie'} · erstellt {formatDate(event.created_at)}</p>
                   </td>
-                  <td className="px-4 py-3">
+                  <td data-label="Host" className="px-4 py-3">
                     <Link to={`/users/${event.host_id}`} className="text-gray-700 hover:text-violet-700">
                       {event.host_name || event.host_username || event.host_email}
                     </Link>
                     <p className="text-xs text-gray-400">{event.host_email}</p>
                   </td>
-                  <td className="px-4 py-3">
+                  <td data-label="Details" className="px-4 py-3">
                     <div className="flex flex-col gap-0.5">
                       <span className="flex items-center gap-1 text-gray-500 text-xs"><MapPin size={10} />{event.city || '-'}</span>
                       <span className="flex items-center gap-1 text-gray-500 text-xs"><Calendar size={10} />{formatDate(event.starts_at, true)}</span>
@@ -198,7 +198,7 @@ export default function EventsPage() {
                       <span className="text-xs text-gray-500">{meetingPlaceType(event)} · {participationMode(event)}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3">
+                  <td data-label="Moderation" className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       <Badge className={STATUS_STYLES[event.status] || STATUS_STYLES.draft}>
                         {STATUS_DE[event.status] || event.status}
@@ -213,8 +213,8 @@ export default function EventsPage() {
                       {event.report_count > 0 && <Badge className="bg-gray-100 text-gray-700">{event.report_count} Meldungen gesamt</Badge>}
                     </div>
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
+                  <td data-label="Aktionen" className="px-4 py-3">
+                    <div className="admin-mobile-actions flex items-center gap-2">
                       <Link
                         to={`/events/${event.id}`}
                         title="Details prüfen"

@@ -702,7 +702,7 @@ export default function RegionsPage() {
           ) : membershipsQuery.error ? (
             <div className="p-5"><ErrorBanner message={getApiErrorMessage(membershipsQuery.error)} /></div>
           ) : memberships.length ? (
-            <div className="overflow-x-auto">
+            <div className="admin-table admin-mobile-table overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
                   <tr><th className="px-5 py-3">Mitglied</th><th className="px-5 py-3">Startrolle</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Quelle</th><th className="px-5 py-3">Beigetreten</th><th className="px-5 py-3">Begrüßung</th></tr>
@@ -710,12 +710,12 @@ export default function RegionsPage() {
                 <tbody className="divide-y divide-gray-100">
                   {memberships.map((membership) => (
                     <tr key={membership.id}>
-                      <td className="px-5 py-3"><p className="font-medium text-gray-900">{membership.user_display_name || membership.user_email}</p><p className="text-xs text-gray-500">{membership.user_email} · {membership.user_city || 'Ohne Ort'}</p></td>
-                      <td className="px-5 py-3 text-gray-700">{ROLE_LABELS[membership.launch_role]}</td>
-                      <td className="px-5 py-3"><span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">{membership.status}</span></td>
-                      <td className="px-5 py-3 text-gray-600">{membership.origin}</td>
-                      <td className="px-5 py-3 text-gray-600">{formatDate(membership.joined_at)}</td>
-                      <td className="px-5 py-3">{membership.launch_welcome_seen_at ? <Check size={16} className="text-green-600" /> : '–'}</td>
+                      <td data-label="Mitglied" className="px-5 py-3"><p className="font-medium text-gray-900">{membership.user_display_name || membership.user_email}</p><p className="text-xs text-gray-500">{membership.user_email} · {membership.user_city || 'Ohne Ort'}</p></td>
+                      <td data-label="Startrolle" className="px-5 py-3 text-gray-700">{ROLE_LABELS[membership.launch_role]}</td>
+                      <td data-label="Status" className="px-5 py-3"><span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">{membership.status}</span></td>
+                      <td data-label="Quelle" className="px-5 py-3 text-gray-600">{membership.origin}</td>
+                      <td data-label="Beigetreten" className="px-5 py-3 text-gray-600">{formatDate(membership.joined_at)}</td>
+                      <td data-label="Begrüßung" className="px-5 py-3">{membership.launch_welcome_seen_at ? <Check size={16} className="text-green-600" /> : '–'}</td>
                     </tr>
                   ))}
                 </tbody>

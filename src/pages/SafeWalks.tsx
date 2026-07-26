@@ -166,7 +166,7 @@ export default function SafeWalksPage() {
       ) : walks.length === 0 ? (
         <EmptyState>Keine Safety Sessions in dieser Auswahl</EmptyState>
       ) : (
-        <div className="admin-table overflow-x-auto rounded-xl border border-gray-200 bg-white">
+        <div className="admin-table admin-mobile-table overflow-x-auto rounded-xl border border-gray-200 bg-white">
           <table className="w-full min-w-[1050px] text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
@@ -186,11 +186,11 @@ export default function SafeWalksPage() {
                   : ''
                 return (
                   <tr key={walk.id} className={walk.needs_attention ? 'bg-amber-50/40 hover:bg-amber-50' : 'hover:bg-gray-50'}>
-                    <td className="px-4 py-3">
+                    <td data-label="Session" className="px-4 py-3">
                       <p className="font-medium text-gray-900">{SAFETY_KIND_LABELS[walk.kind] || walk.kind}</p>
                       <p className="text-xs text-gray-400">#{walk.id} · v{walk.version}</p>
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-label="Nutzer / Event" className="px-4 py-3">
                       {walk.user ? (
                         <Link to={`/users/${walk.user.id}`} className="font-medium text-gray-900 hover:text-violet-700">{walk.user.display_name || walk.user.username || walk.user.email}</Link>
                       ) : <p className="font-medium text-gray-500">Gelöschtes Mitglied</p>}
@@ -198,12 +198,12 @@ export default function SafeWalksPage() {
                         <Link to={`/events/${walk.event_id}`} className="block max-w-56 truncate text-xs text-violet-700 hover:text-violet-900">{walk.event_title || `Event #${walk.event_id}`}</Link>
                       ) : <p className="text-xs text-gray-400">Kein Event verknüpft</p>}
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">
+                    <td data-label="Zeitplan" className="px-4 py-3 text-xs text-gray-500">
                       <p>{walk.destination_label || 'Geschütztes Ziel'}</p>
                       <p>Erwartet: {formatDate(walk.expected_arrival_at, true)}</p>
                       {walk.last_extended_at && <p>+{walk.last_extension_minutes} Min. · {formatDate(walk.last_extended_at, true)}</p>}
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">
+                    <td data-label="Telemetrie" className="px-4 py-3 text-xs text-gray-500">
                       <p className="inline-flex items-center gap-1"><Radio size={12} /> App {freshnessLabel(walk.last_app_contact_at)}</p>
                       <p>Standort {freshnessLabel(walk.last_location_at)} · {walk.location_point_count} Punkte</p>
                       {mapUrl ? (
@@ -212,19 +212,19 @@ export default function SafeWalksPage() {
                         <p className="mt-1 text-violet-600">Standort bis Eskalation geschützt</p>
                       ) : null}
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">
+                    <td data-label="Kontaktweg" className="px-4 py-3 text-xs text-gray-500">
                       <p>{TRUST_MODE_LABELS[walk.trusted_contact_type] || walk.trusted_contact_type}</p>
                       <p>{walk.contact_count} Kontakte · {walk.accepted_invite_count}/{walk.invite_count} Links angenommen</p>
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-label="Status" className="px-4 py-3">
                       <div className="flex max-w-44 flex-wrap gap-1">
                         <Badge className={SAFETY_STATUS_STYLES[walk.status] || 'bg-gray-100 text-gray-600'}>{SAFETY_STATUS_LABELS[walk.status] || walk.status}</Badge>
                         {walk.needs_attention && <Badge className="bg-red-100 text-red-700">Handlungsbedarf</Badge>}
                       </div>
                       <p className="mt-1 text-xs text-gray-500">{getWalkPhase(walk)}</p>
                     </td>
-                    <td className="px-4 py-3">
-                      <Link to={`/safe-walks/${walk.id}`} title="Safety Session öffnen" className="inline-flex rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-violet-700"><ChevronRight size={16} /></Link>
+                    <td data-label="" className="px-4 py-3">
+                      <Link to={`/safe-walks/${walk.id}`} title="Safety Session öffnen" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-violet-700"><ChevronRight size={16} /></Link>
                     </td>
                   </tr>
                 )

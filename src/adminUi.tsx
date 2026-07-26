@@ -30,12 +30,12 @@ export function Pagination({
   const next = cursorFromUrl(data?.next)
   if (!previous && !next) return null
   return (
-    <div className="mt-4 flex items-center justify-end gap-2">
+    <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:items-center sm:justify-end">
       <button
         type="button"
         disabled={!previous}
         onClick={() => onCursor(previous)}
-        className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-600 disabled:opacity-40"
+        className="inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-600 disabled:opacity-40"
       >
         <ChevronLeft size={14} /> Zurück
       </button>
@@ -43,7 +43,7 @@ export function Pagination({
         type="button"
         disabled={!next}
         onClick={() => onCursor(next)}
-        className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-600 disabled:opacity-40"
+        className="inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-600 disabled:opacity-40"
       >
         Weiter <ChevronRight size={14} />
       </button>
