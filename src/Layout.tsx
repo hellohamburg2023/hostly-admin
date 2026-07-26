@@ -9,11 +9,13 @@ import {
   Tag, Sparkles, Lightbulb, LogOut, ShieldCheck,
   Footprints, Activity, ClipboardList,
   BellRing, ChartNoAxesCombined, Menu, X,
+  MapPinned,
 } from 'lucide-react'
 
 const nav = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/users', label: 'Nutzer', icon: Users },
+  { to: '/regions', label: 'Regionen & City-Start', icon: MapPinned },
   { to: '/push-notifications', label: 'Push-Nachrichten', icon: BellRing },
   { to: '/verification', label: 'Verifizierung', icon: ShieldCheck },
   { to: '/events', label: 'Events', icon: CalendarDays },

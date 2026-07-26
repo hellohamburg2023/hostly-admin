@@ -14,6 +14,7 @@ import {
   CheckCircle,
   CircleDashed,
   Footprints,
+  MapPin,
   TrendingUp,
   Users,
   Wifi,
@@ -40,6 +41,13 @@ interface Stats {
   reports: { open: number; reviewing: number }
   ideas: { total: number }
   safe_walks: Record<string, number>
+  regions: {
+    enabled: boolean
+    total: number
+    by_status: Record<string, number>
+    waiting_members: number
+    waiting_hosts: number
+  }
 }
 
 interface Analytics {
@@ -326,7 +334,7 @@ export default function Dashboard() {
         </div>
       </Link>
 
-      <div className="grid grid-cols-2 gap-4 mb-8 lg:grid-cols-4 xl:grid-cols-7">
+      <div className="grid grid-cols-2 gap-4 mb-8 lg:grid-cols-4 xl:grid-cols-8">
         <KPI icon={Users} label="Nutzer gesamt" value={data.users.total} sub={`${data.users.active} aktiv · ${data.users.deleted} gelöscht`} color="violet" />
         <KPI icon={Wifi} label="Online jetzt" value={data.users.online_now ?? 0} sub={`Aktivität in den letzten ${data.users.online_window_minutes ?? 5} Min.`} color="green" />
         <KPI icon={Activity} label="Aktiv 7 Tage" value={data.users.active_7d} sub={`${data.users.active_30d} in 30 Tagen`} color="green" />
@@ -334,6 +342,7 @@ export default function Dashboard() {
         <KPI icon={CalendarDays} label="Events gesamt" value={data.events.total} color="green" />
         <KPI icon={AlertTriangle} label="Neue Meldungen" value={data.reports.open} sub={`${data.reports.reviewing} in Prüfung`} color="red" />
         <KPI icon={Footprints} label="Safety Sessions live" value={liveSafetySessions} sub={`${analytics?.safe_walks.needs_attention ?? data.safe_walks.escalated ?? 0} mit Handlungsbedarf`} color="amber" />
+        <KPI icon={MapPin} label="City-Starts" value={data.regions?.by_status?.waitlist ?? 0} sub={`${data.regions?.waiting_members ?? 0} vorgemerkt · ${data.regions?.by_status?.active ?? 0} aktiv`} color="violet" />
       </div>
 
       <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-2">

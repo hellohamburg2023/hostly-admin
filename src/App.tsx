@@ -23,6 +23,7 @@ const ProductAnalyticsPage = lazy(() => import('./pages/ProductAnalytics'))
 const HealthPage = lazy(() => import('./pages/Health'))
 const AuditLogsPage = lazy(() => import('./pages/AuditLogs'))
 const PushNotificationsPage = lazy(() => import('./pages/PushNotifications'))
+const RegionsPage = lazy(() => import('./pages/Regions'))
 
 function AppLoadingFallback() {
   return (
@@ -56,6 +57,7 @@ export default function App() {
           <Route path="health" element={<HealthPage />} />
           <Route path="audit" element={<AuditLogsPage />} />
           <Route path="push-notifications" element={<PushNotificationsPage />} />
+          <Route path="regions" element={<RegionsPage />} />
           <Route path="categories" element={<CategoriesPage />} />
           <Route path="interests" element={<InterestsPage />} />
           <Route path="ideas" element={<IdeasPage />} />

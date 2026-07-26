@@ -308,6 +308,33 @@ export const patchIdea = (id: number, data: Record<string, unknown>) =>
 export const deleteIdea = (id: number) =>
   api.delete(`/api/admin/ideas/${id}/`).then((r) => r.data)
 
+export const getRegionalConfiguration = () =>
+  api.get('/api/admin/regional-configuration/1/').then((r) => r.data)
+
+export const patchRegionalConfiguration = (data: { regional_waitlist_enabled: boolean }) =>
+  api.patch('/api/admin/regional-configuration/1/', data).then((r) => r.data)
+
+export const migrateExistingRegions = (apply: boolean) =>
+  api.post('/api/admin/regional-configuration/migrate-existing/', { apply }).then((r) => r.data)
+
+export const getRegions = (params?: Record<string, string>) =>
+  api.get('/api/admin/regions/', { params }).then((r) => r.data)
+
+export const createRegion = (data: Record<string, unknown>) =>
+  api.post('/api/admin/regions/', data).then((r) => r.data)
+
+export const patchRegion = (id: number, data: Record<string, unknown>) =>
+  api.patch(`/api/admin/regions/${id}/`, data).then((r) => r.data)
+
+export const deleteRegion = (id: number) =>
+  api.delete(`/api/admin/regions/${id}/`).then((r) => r.data)
+
+export const runRegionAction = (id: number, action: 'evaluate' | 'pause' | 'resume' | 'retry-launch-push') =>
+  api.post(`/api/admin/regions/${id}/${action}/`).then((r) => r.data)
+
+export const getRegionMemberships = (params?: Record<string, string>) =>
+  api.get('/api/admin/region-memberships/', { params }).then((r) => r.data)
+
 export function cursorFromUrl(url: string | null | undefined) {
   if (!url) return ''
   try {
