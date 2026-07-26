@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Activity,
@@ -274,6 +274,8 @@ export default function RegionsPage() {
   const [defaultRadius, setDefaultRadius] = useState('40')
   const [defaultMembers, setDefaultMembers] = useState('20')
   const [defaultHosts, setDefaultHosts] = useState('2')
+  const formPanelRef = useRef<HTMLDivElement>(null)
+  const membershipsPanelRef = useRef<HTMLElement>(null)
 
   const configuration = useQuery<RegionalConfiguration>({
     queryKey: ['regional-configuration'],
@@ -298,6 +300,22 @@ export default function RegionsPage() {
     setDefaultHosts(String(configuration.data.default_host_threshold))
   }, [configuration.data])
 
+  useEffect(() => {
+    if (!formOpen) return
+    const frame = window.requestAnimationFrame(() => {
+      formPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [formOpen, editing?.id])
+
+  useEffect(() => {
+    if (selectedRegionId === null) return
+    const frame = window.requestAnimationFrame(() => {
+      membershipsPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [selectedRegionId, membershipsQuery.isLoading, memberships.length])
+
   const totals = useMemo(() => ({
     active: regions.filter((region) => region.status === 'active').length,
     waiting: regions.filter((region) => region.status === 'waitlist').length,
@@ -306,6 +324,11 @@ export default function RegionsPage() {
     waitingMembers: regions.reduce((sum, region) => sum + region.member_count, 0),
     waitingHosts: regions.reduce((sum, region) => sum + region.host_count, 0),
   }), [regions])
+  const migrationHasChanges = Boolean(migrationResult && (
+    migrationResult.stats.regions_created > 0
+    || migrationResult.stats.users_assigned > 0
+    || migrationResult.stats.events_assigned > 0
+  ))
 
   const invalidate = async () => {
     await Promise.all([
@@ -418,6 +441,19 @@ export default function RegionsPage() {
 
       <ErrorBanner message={loadError ? getApiErrorMessage(loadError) : actionError} />
 
+      {formOpen && (
+        <div ref={formPanelRef} className="mb-6 scroll-mt-4">
+          <RegionFormPanel
+            form={form}
+            editing={editing}
+            saving={saveMutation.isPending}
+            onChange={(field, value) => setForm((current) => ({ ...current, [field]: value }))}
+            onCancel={() => { setFormOpen(false); setEditing(null); setForm(EMPTY_FORM) }}
+            onSubmit={() => saveMutation.mutate()}
+          />
+        </div>
+      )}
+
       <section className={`mb-6 rounded-2xl border p-5 ${configuration.data?.regional_waitlist_enabled ? 'border-green-200 bg-green-50' : 'border-gray-300 bg-gray-50'}`}>
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
           <div className="flex items-start gap-3">
@@ -519,34 +555,57 @@ export default function RegionsPage() {
         )}
         <div className="mt-4 flex flex-col gap-3 border-t border-gray-200/80 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-semibold text-gray-800">Bestehende Wohnorte vorbereiten</p>
-            <p className="mt-0.5 text-xs text-gray-500">Prüft Bestandsdaten, ohne Wartelisten-Nutzer automatisch freizuschalten.</p>
+            <p className="text-sm font-semibold text-gray-800">Bestandsdaten für den City-Start</p>
+            <p className="mt-0.5 max-w-3xl text-xs leading-5 text-gray-500">
+              {configuration.data?.regional_waitlist_enabled
+                ? 'Prüft neue oder bisher nicht zugeordnete Wohnorte und Events seit der letzten Vorbereitung.'
+                : 'Optional vorab prüfen. Beim Aktivieren des City-Starts wird dieselbe Vorbereitung automatisch ausgeführt.'}
+            </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" disabled={migrationMutation.isPending} onClick={() => migrationMutation.mutate(false)} className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-              Vorbereitung prüfen
-            </button>
-            <button
-              type="button"
-              disabled={migrationMutation.isPending}
-              onClick={() => {
-                if (window.confirm('Bestehende Wohnorte jetzt als Wartelisten-Regionen vorbereiten? Nutzer werden nur vorhandenen aktiven Regionen zugeordnet; alle anderen wählen Region und Startrolle selbst.')) {
-                  migrationMutation.mutate(true)
-                }
-              }}
-              className="rounded-xl border border-violet-200 bg-white px-3 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-50"
-            >
-              Wohnorte vorbereiten
-            </button>
-          </div>
+          <button
+            type="button"
+            disabled={migrationMutation.isPending}
+            onClick={() => migrationMutation.mutate(false)}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {migrationMutation.isPending
+              ? <><RefreshCw className="animate-spin" size={15} /> Wird geprüft…</>
+              : <><RefreshCw size={15} /> {migrationResult ? 'Erneut prüfen' : 'Bestandsdaten prüfen'}</>}
+          </button>
         </div>
         {migrationResult && (
-          <div className="mt-4 grid gap-2 rounded-xl border border-violet-100 bg-white/70 p-3 text-xs text-gray-600 sm:grid-cols-3 lg:grid-cols-5">
-            <span><strong className="text-gray-900">{migrationResult.stats.regions_created}</strong> Regionen {migrationResult.applied ? 'angelegt' : 'neu erforderlich'}</span>
-            <span><strong className="text-gray-900">{migrationResult.stats.users_assigned}</strong> Nutzer {migrationResult.applied ? 'zugeordnet' : 'zuordenbar'}</span>
-            <span><strong className="text-gray-900">{migrationResult.stats.users_unmatched}</strong> ohne verwertbaren Wohnort</span>
-            <span><strong className="text-gray-900">{migrationResult.stats.users_requiring_selection}</strong> brauchen die Regionsauswahl</span>
-            <span><strong className="text-gray-900">{migrationResult.stats.events_assigned}</strong> Events {migrationResult.applied ? 'zugeordnet' : 'zuordenbar'}</span>
+          <div className="mt-4 rounded-xl border border-violet-100 bg-white/70 p-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">
+                  {migrationResult.applied ? 'Vorbereitung abgeschlossen' : 'Vorschau – noch nichts geändert'}
+                </p>
+                <p className="mt-0.5 text-xs leading-5 text-gray-500">
+                  {migrationResult.applied
+                    ? 'Wartelisten-Nutzer wurden nicht automatisch freigeschaltet.'
+                    : migrationHasChanges
+                      ? 'Prüfe die Zahlen und wende die Vorbereitung anschließend bewusst an.'
+                      : 'Der aktuelle Bestand erfordert keine weitere Vorbereitung.'}
+                </p>
+              </div>
+              {!migrationResult.applied && migrationHasChanges && (
+                <button
+                  type="button"
+                  disabled={migrationMutation.isPending}
+                  onClick={() => migrationMutation.mutate(true)}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-violet-600 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+                >
+                  <Play size={15} /> Vorbereitung anwenden
+                </button>
+              )}
+            </div>
+            <div className="mt-3 grid gap-2 border-t border-violet-100 pt-3 text-xs text-gray-600 sm:grid-cols-3 lg:grid-cols-5">
+              <span><strong className="text-gray-900">{migrationResult.stats.regions_created}</strong> Regionen {migrationResult.applied ? 'angelegt' : 'neu erforderlich'}</span>
+              <span><strong className="text-gray-900">{migrationResult.stats.users_assigned}</strong> Nutzer {migrationResult.applied ? 'zugeordnet' : 'zuordenbar'}</span>
+              <span><strong className="text-gray-900">{migrationResult.stats.users_unmatched}</strong> ohne verwertbaren Wohnort</span>
+              <span><strong className="text-gray-900">{migrationResult.stats.users_requiring_selection}</strong> brauchen die Regionsauswahl</span>
+              <span><strong className="text-gray-900">{migrationResult.stats.events_assigned}</strong> Events {migrationResult.applied ? 'zugeordnet' : 'zuordenbar'}</span>
+            </div>
           </div>
         )}
       </section>
@@ -590,19 +649,6 @@ export default function RegionsPage() {
         <Metric icon={Gauge} label="Startbereite Hosts" value={totals.waitingHosts} sub="Host oder Gast & Host" />
         <Metric icon={BellRing} label="Start-Pushes" value={regions.filter((region) => region.notification_job?.status === 'completed').length} sub="abgeschlossene Jobs" />
       </div>
-
-      {formOpen && (
-        <div className="mb-6">
-          <RegionFormPanel
-            form={form}
-            editing={editing}
-            saving={saveMutation.isPending}
-            onChange={(field, value) => setForm((current) => ({ ...current, [field]: value }))}
-            onCancel={() => { setFormOpen(false); setEditing(null); setForm(EMPTY_FORM) }}
-            onSubmit={() => saveMutation.mutate()}
-          />
-        </div>
-      )}
 
       <div className="grid gap-4 xl:grid-cols-2">
         {regions.map((region) => (
@@ -648,14 +694,19 @@ export default function RegionsPage() {
             )}
 
             <div className="mt-4 flex flex-wrap gap-2 border-t border-gray-100 pt-4">
-              <button type="button" onClick={() => setSelectedRegionId(selectedRegionId === region.id ? null : region.id)} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
-                <Users size={14} /> Mitglieder
+              <button
+                type="button"
+                onClick={() => setSelectedRegionId(selectedRegionId === region.id ? null : region.id)}
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold ${
+                  selectedRegionId === region.id
+                    ? 'border-violet-300 bg-violet-50 text-violet-700'
+                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+                aria-expanded={selectedRegionId === region.id}
+                aria-controls="region-memberships"
+              >
+                <Users size={14} /> {selectedRegionId === region.id ? 'Mitglieder ausblenden' : 'Mitglieder anzeigen'}
               </button>
-              {region.status === 'waitlist' && (
-                <button type="button" onClick={() => actionMutation.mutate({ id: region.id, action: 'evaluate' })} className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-50">
-                  <RefreshCw size={14} /> Neu bewerten
-                </button>
-              )}
               {region.notification_job?.status === 'failed' && (
                 <button type="button" onClick={() => actionMutation.mutate({ id: region.id, action: 'retry-launch-push' })} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50">
                   <BellRing size={14} /> Push erneut senden
@@ -689,7 +740,7 @@ export default function RegionsPage() {
       )}
 
       {selectedRegionId !== null && (
-        <section className="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+        <section ref={membershipsPanelRef} id="region-memberships" className="mt-6 min-h-[calc(100dvh-6rem)] scroll-mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white sm:min-h-0">
           <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
             <div>
               <h3 className="font-semibold text-gray-900">Regionsmitgliedschaften</h3>
