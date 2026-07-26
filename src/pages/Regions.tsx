@@ -72,6 +72,8 @@ interface Region {
   members_missing: number
   hosts_missing: number
   active_member_count: number
+  visitor_count: number
+  selected_visitor_count: number
   event_count: number
   notification_job: NotificationJob | null
   updated_at: string
@@ -89,7 +91,11 @@ interface Membership {
   launch_role: 'guest' | 'host' | 'both' | ''
   status: 'waiting' | 'active' | 'left'
   origin: 'onboarding' | 'migration' | 'manual'
+  is_home: boolean
+  is_selected_visit: boolean
+  visit_started_at: string | null
   joined_at: string
+  join_welcome_seen_at: string | null
   launch_welcome_seen_at: string | null
 }
 
@@ -323,6 +329,8 @@ export default function RegionsPage() {
     automatic: regions.filter((region) => region.creation_source !== 'manual').length,
     waitingMembers: regions.reduce((sum, region) => sum + region.member_count, 0),
     waitingHosts: regions.reduce((sum, region) => sum + region.host_count, 0),
+    visitors: regions.reduce((sum, region) => sum + region.visitor_count, 0),
+    selectedVisitors: regions.reduce((sum, region) => sum + region.selected_visitor_count, 0),
   }), [regions])
   const migrationHasChanges = Boolean(migrationResult && (
     migrationResult.stats.regions_created > 0
@@ -432,7 +440,7 @@ export default function RegionsPage() {
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Regionen & City-Start</h2>
-          <p className="mt-1 max-w-3xl text-sm text-gray-500">Radien, individuelle Startschwellen, Wartelisten-Fortschritt, Push-Ergebnisse und Regionsstatus zentral verwalten.</p>
+          <p className="mt-1 max-w-3xl text-sm text-gray-500">Heimatregionen, Wartelisten-Fortschritt, aktive Gastzugänge, Push-Ergebnisse und Regionsstatus zentral verwalten.</p>
         </div>
         <button type="button" onClick={openCreate} className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">
           <Plus size={17} /> Region anlegen
@@ -473,7 +481,7 @@ export default function RegionsPage() {
               </div>
               <p className="mt-1 max-w-4xl text-sm leading-5 text-gray-600" aria-live="polite">
                 {configuration.data?.regional_waitlist_enabled
-                  ? 'Neue Wohnorte werden für den City-Start vorbereitet. Normale Nutzer wählen Region und Startrolle; Testuser und Superuser behalten Vollzugriff.'
+                  ? 'Neue Wohnorte werden für den City-Start vorbereitet. Wartende Nutzer können eine bereits aktive Region als Gast öffnen, dort teilnehmen oder hosten; ihre Heimatregion und deren Fortschritt bleiben unverändert.'
                   : 'Der City-Start ist ausgeschaltet. Normale Nutzer haben Vollzugriff; bestehende Regionen und Wartelistendaten bleiben erhalten.'}
               </p>
               <p className="mt-1 text-xs text-gray-400">Zuletzt geändert: {formatDate(configuration.data?.updated_at ?? null)}</p>
@@ -513,7 +521,7 @@ export default function RegionsPage() {
                 <p className="mt-1 max-w-3xl text-sm leading-5 text-gray-600">
                   {configurationIntent === 'disable'
                     ? 'Normale Nutzer erhalten wieder Vollzugriff. Regionen und Wartelistendaten werden nicht gelöscht.'
-                    : 'Bestehende Wohnorte werden vorbereitet. Nutzer wählen anschließend Region und Startrolle; nur bereits aktive Regionen gewähren Vollzugriff.'}
+                    : 'Bestehende Wohnorte werden vorbereitet. Nutzer wählen Heimatregion und Startrolle. Solange sie warten, können sie genau eine bereits aktive Region als Gast öffnen, ohne den Heimat-Launch zu verlassen.'}
                 </p>
               </div>
               <div className="flex shrink-0 gap-2">
@@ -642,11 +650,12 @@ export default function RegionsPage() {
         </div>
       </section>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-6">
         <Metric icon={MapPin} label="Regionen" value={regions.length} sub={`${totals.active} aktiv · ${totals.automatic} automatisch`} />
         <Metric icon={Activity} label="Im Aufbau" value={totals.waiting} sub={`${totals.paused} pausiert`} />
-        <Metric icon={Users} label="Vorgemerkte Nutzer" value={totals.waitingMembers} sub="über alle Wartelisten" />
+        <Metric icon={Users} label="Heimat-Warteliste" value={totals.waitingMembers} sub="zählt für den City-Start" />
         <Metric icon={Gauge} label="Startbereite Hosts" value={totals.waitingHosts} sub="Host oder Gast & Host" />
+        <Metric icon={MapPin} label="Gastzugänge" value={totals.selectedVisitors} sub={`${totals.visitors} Besuchende insgesamt`} />
         <Metric icon={BellRing} label="Start-Pushes" value={regions.filter((region) => region.notification_job?.status === 'completed').length} sub="abgeschlossene Jobs" />
       </div>
 
@@ -676,11 +685,15 @@ export default function RegionsPage() {
                 <p className="text-xs text-gray-500">Noch {region.members_missing} Mitglieder und {region.hosts_missing} Hosts bis zum automatischen Start.</p>
               </div>
             ) : (
-              <div className="mt-5 grid grid-cols-3 gap-2 rounded-xl bg-gray-50 p-4 text-center">
-                <div><p className="text-xl font-bold text-gray-900">{region.active_member_count}</p><p className="text-xs text-gray-500">Zuordnungen</p></div>
+              <div className="mt-5 grid grid-cols-2 gap-2 rounded-xl bg-gray-50 p-4 text-center sm:grid-cols-4">
+                <div><p className="text-xl font-bold text-gray-900">{region.active_member_count}</p><p className="text-xs text-gray-500">Heimatnutzer</p></div>
+                <div><p className="text-xl font-bold text-violet-700">{region.selected_visitor_count}</p><p className="text-xs text-gray-500">Gastzugänge aktiv</p></div>
+                <div><p className="text-xl font-bold text-gray-900">{region.visitor_count}</p><p className="text-xs text-gray-500">Besuchende gesamt</p></div>
                 <div><p className="text-xl font-bold text-gray-900">{region.event_count}</p><p className="text-xs text-gray-500">Events</p></div>
-                <div><p className="text-sm font-semibold text-gray-900">{formatDate(region.activated_at)}</p><p className="text-xs text-gray-500">Gestartet</p></div>
               </div>
+            )}
+            {region.status === 'active' && (
+              <p className="mt-2 text-xs text-gray-400">Gestartet: {formatDate(region.activated_at)}</p>
             )}
 
             {region.notification_job && (
@@ -705,7 +718,7 @@ export default function RegionsPage() {
                 aria-expanded={selectedRegionId === region.id}
                 aria-controls="region-memberships"
               >
-                <Users size={14} /> {selectedRegionId === region.id ? 'Mitglieder ausblenden' : 'Mitglieder anzeigen'}
+                <Users size={14} /> {selectedRegionId === region.id ? 'Personen ausblenden' : 'Personen & Gastzugänge'}
               </button>
               {region.notification_job?.status === 'failed' && (
                 <button type="button" onClick={() => actionMutation.mutate({ id: region.id, action: 'retry-launch-push' })} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50">
@@ -721,7 +734,7 @@ export default function RegionsPage() {
                   <CirclePause size={14} /> Pausieren
                 </button>
               )}
-              {region.member_count === 0 && region.active_member_count === 0 && region.event_count === 0 && (
+              {region.member_count === 0 && region.active_member_count === 0 && region.visitor_count === 0 && region.event_count === 0 && (
                 <button type="button" onClick={() => { if (window.confirm(`${region.name} wirklich löschen?`)) deleteMutation.mutate(region.id) }} className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">
                   <Trash2 size={14} /> Löschen
                 </button>
@@ -743,8 +756,8 @@ export default function RegionsPage() {
         <section ref={membershipsPanelRef} id="region-memberships" className="mt-6 min-h-[calc(100dvh-6rem)] scroll-mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white sm:min-h-0">
           <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
             <div>
-              <h3 className="font-semibold text-gray-900">Regionsmitgliedschaften</h3>
-              <p className="mt-0.5 text-sm text-gray-500">{regions.find((region) => region.id === selectedRegionId)?.name}</p>
+              <h3 className="font-semibold text-gray-900">Heimatnutzer & Besuchende</h3>
+              <p className="mt-0.5 text-sm text-gray-500">{regions.find((region) => region.id === selectedRegionId)?.name} · Gastzugänge zählen nicht für den City-Start</p>
             </div>
             <button type="button" onClick={() => setSelectedRegionId(null)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100"><X size={17} /></button>
           </div>
@@ -756,24 +769,38 @@ export default function RegionsPage() {
             <div className="admin-table admin-mobile-table overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
-                  <tr><th className="px-5 py-3">Mitglied</th><th className="px-5 py-3">Startrolle</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Quelle</th><th className="px-5 py-3">Beigetreten</th><th className="px-5 py-3">Begrüßung</th></tr>
+                  <tr><th className="px-5 py-3">Person</th><th className="px-5 py-3">Zugang</th><th className="px-5 py-3">Startrolle</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Beginn</th><th className="px-5 py-3">Begrüßung</th></tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {memberships.map((membership) => (
                     <tr key={membership.id}>
-                      <td data-label="Mitglied" className="px-5 py-3"><p className="font-medium text-gray-900">{membership.user_display_name || membership.user_email}</p><p className="text-xs text-gray-500">{membership.user_email} · {membership.user_city || 'Ohne Ort'}</p></td>
+                      <td data-label="Person" className="px-5 py-3"><p className="font-medium text-gray-900">{membership.user_display_name || membership.user_email}</p><p className="text-xs text-gray-500">{membership.user_email} · {membership.user_city || 'Ohne Ort'}</p></td>
+                      <td data-label="Zugang" className="px-5 py-3">
+                        <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                          membership.is_home
+                            ? 'bg-blue-50 text-blue-700'
+                            : membership.is_selected_visit
+                              ? 'bg-violet-100 text-violet-800'
+                              : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {membership.is_home
+                            ? 'Heimatregion'
+                            : membership.is_selected_visit
+                              ? 'Gastzugang aktiv'
+                              : 'Besuch gespeichert'}
+                        </span>
+                      </td>
                       <td data-label="Startrolle" className="px-5 py-3 text-gray-700">{ROLE_LABELS[membership.launch_role]}</td>
                       <td data-label="Status" className="px-5 py-3"><span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">{membership.status}</span></td>
-                      <td data-label="Quelle" className="px-5 py-3 text-gray-600">{membership.origin}</td>
-                      <td data-label="Beigetreten" className="px-5 py-3 text-gray-600">{formatDate(membership.joined_at)}</td>
-                      <td data-label="Begrüßung" className="px-5 py-3">{membership.launch_welcome_seen_at ? <Check size={16} className="text-green-600" /> : '–'}</td>
+                      <td data-label="Beginn" className="px-5 py-3 text-gray-600">{formatDate(membership.visit_started_at || membership.joined_at)}</td>
+                      <td data-label="Begrüßung" className="px-5 py-3">{membership.join_welcome_seen_at ? <Check size={16} className="text-green-600" /> : '–'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           ) : (
-            <p className="p-5 text-sm text-gray-400">Für diese Region gibt es noch keine Mitgliedschaften.</p>
+            <p className="p-5 text-sm text-gray-400">Für diese Region gibt es noch keine Heimatnutzer oder Besuchenden.</p>
           )}
         </section>
       )}
