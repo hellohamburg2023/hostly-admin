@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Activity,
@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import {
+  activateRegionalWaitlist,
   createRegion,
   deleteRegion,
   getApiErrorMessage,
@@ -36,6 +37,9 @@ type RegionStatus = 'waitlist' | 'active' | 'paused'
 interface RegionalConfiguration {
   id: number
   regional_waitlist_enabled: boolean
+  default_radius_km: string
+  default_member_threshold: number
+  default_host_threshold: number
   updated_at: string
 }
 
@@ -59,6 +63,7 @@ interface Region {
   center_longitude: string
   radius_km: string
   status: RegionStatus
+  creation_source: 'manual' | 'automatic' | 'migration'
   member_threshold: number
   host_threshold: number
   activated_at: string | null
@@ -103,7 +108,10 @@ interface MigrationResult {
     users_assigned: number
     users_already_assigned: number
     users_unmatched: number
+    users_requiring_selection: number
     users_bypassed: number
+    regions_created: number
+    regions_reused: number
     events_assigned: number
     events_unmatched: number
   }
@@ -262,6 +270,9 @@ export default function RegionsPage() {
   const [selectedRegionId, setSelectedRegionId] = useState<number | null>(null)
   const [actionError, setActionError] = useState('')
   const [migrationResult, setMigrationResult] = useState<MigrationResult | null>(null)
+  const [defaultRadius, setDefaultRadius] = useState('40')
+  const [defaultMembers, setDefaultMembers] = useState('20')
+  const [defaultHosts, setDefaultHosts] = useState('2')
 
   const configuration = useQuery<RegionalConfiguration>({
     queryKey: ['regional-configuration'],
@@ -279,10 +290,18 @@ export default function RegionsPage() {
   })
   const memberships = pageResults<Membership>(membershipsQuery.data)
 
+  useEffect(() => {
+    if (!configuration.data) return
+    setDefaultRadius(String(configuration.data.default_radius_km))
+    setDefaultMembers(String(configuration.data.default_member_threshold))
+    setDefaultHosts(String(configuration.data.default_host_threshold))
+  }, [configuration.data])
+
   const totals = useMemo(() => ({
     active: regions.filter((region) => region.status === 'active').length,
     waiting: regions.filter((region) => region.status === 'waitlist').length,
     paused: regions.filter((region) => region.status === 'paused').length,
+    automatic: regions.filter((region) => region.creation_source !== 'manual').length,
     waitingMembers: regions.reduce((sum, region) => sum + region.member_count, 0),
     waitingHosts: regions.reduce((sum, region) => sum + region.host_count, 0),
   }), [regions])
@@ -300,6 +319,18 @@ export default function RegionsPage() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['regional-configuration'] })
       await queryClient.invalidateQueries({ queryKey: ['stats'] })
+    },
+    onError: (error) => setActionError(getApiErrorMessage(error)),
+  })
+  const activationMutation = useMutation({
+    mutationFn: activateRegionalWaitlist,
+    onSuccess: async (result: MigrationResult) => {
+      setMigrationResult(result)
+      setActionError('')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['regional-configuration'] }),
+        invalidate(),
+      ])
     },
     onError: (error) => setActionError(getApiErrorMessage(error)),
   })
@@ -391,8 +422,8 @@ export default function RegionsPage() {
               <h3 className="font-semibold text-gray-900">Regionsbasierte Warteliste</h3>
               <p className="mt-1 text-sm text-gray-600">
                 {configuration.data?.regional_waitlist_enabled
-                  ? 'Aktiv: normale Nutzer werden anhand ihrer Regionsauswahl geführt. Testuser und Superuser behalten Vollzugriff.'
-                  : 'Deaktiviert: Hostly verhält sich für alle Nutzer wie bisher; Regionsdaten bleiben erhalten.'}
+                  ? 'Aktiv: neue Wohnorte werden automatisch als Region angelegt. Testuser und Superuser behalten Vollzugriff.'
+                  : 'Deaktiviert: Beim Aktivieren werden bestehende Wohnorte automatisch als aktive Regionen vorbereitet; neue Wohnorte starten danach als Warteliste.'}
               </p>
               <p className="mt-1 text-xs text-gray-400">Zuletzt geändert: {formatDate(configuration.data?.updated_at ?? null)}</p>
             </div>
@@ -415,27 +446,76 @@ export default function RegionsPage() {
             </button>
             <button
               type="button"
-              disabled={configMutation.isPending}
-              onClick={() => configMutation.mutate({ regional_waitlist_enabled: !configuration.data?.regional_waitlist_enabled })}
-              className={`relative ml-1 h-8 w-14 shrink-0 rounded-full transition-colors ${configuration.data?.regional_waitlist_enabled ? 'bg-green-600' : 'bg-gray-300'}`}
+              disabled={configMutation.isPending || activationMutation.isPending}
+              onClick={() => {
+                if (configuration.data?.regional_waitlist_enabled) {
+                  configMutation.mutate({ regional_waitlist_enabled: false })
+                  return
+                }
+                if (window.confirm('City-Start jetzt aktivieren? Bestehende Wohnorte werden automatisch als aktive Regionen angelegt und zugeordnet. Neue Wohnorte starten anschließend mit den Standards als Warteliste.')) {
+                  activationMutation.mutate()
+                }
+              }}
+              className={`inline-flex items-center gap-3 rounded-xl border px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
+                configuration.data?.regional_waitlist_enabled
+                  ? 'border-green-200 bg-white text-green-700'
+                  : 'border-violet-200 bg-violet-600 text-white hover:bg-violet-700'
+              }`}
               aria-label="Regionsbasierte Warteliste umschalten"
               aria-pressed={Boolean(configuration.data?.regional_waitlist_enabled)}
             >
-              <span className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-transform ${configuration.data?.regional_waitlist_enabled ? 'translate-x-7' : 'translate-x-1'}`} />
+              <span>{activationMutation.isPending ? 'Wohnorte werden vorbereitet…' : configuration.data?.regional_waitlist_enabled ? 'City-Start deaktivieren' : 'Wohnorte vorbereiten & City-Start aktivieren'}</span>
+              <span className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${configuration.data?.regional_waitlist_enabled ? 'bg-green-600' : 'bg-white/30'}`}>
+                <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${configuration.data?.regional_waitlist_enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </span>
             </button>
           </div>
         </div>
         {migrationResult && (
-          <div className="mt-4 grid gap-2 rounded-xl border border-violet-100 bg-white/70 p-3 text-xs text-gray-600 sm:grid-cols-3">
+          <div className="mt-4 grid gap-2 rounded-xl border border-violet-100 bg-white/70 p-3 text-xs text-gray-600 sm:grid-cols-3 lg:grid-cols-5">
+            <span><strong className="text-gray-900">{migrationResult.stats.regions_created}</strong> Regionen {migrationResult.applied ? 'angelegt' : 'neu erforderlich'}</span>
             <span><strong className="text-gray-900">{migrationResult.stats.users_assigned}</strong> Nutzer {migrationResult.applied ? 'zugeordnet' : 'zuordenbar'}</span>
             <span><strong className="text-gray-900">{migrationResult.stats.users_unmatched}</strong> benötigen die Regionsauswahl</span>
+            <span><strong className="text-gray-900">{migrationResult.stats.users_requiring_selection}</strong> bleiben in vorhandenen Wartelisten</span>
             <span><strong className="text-gray-900">{migrationResult.stats.events_assigned}</strong> Events {migrationResult.applied ? 'zugeordnet' : 'zuordenbar'}</span>
           </div>
         )}
       </section>
 
+      <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-5">
+        <div>
+          <h3 className="font-semibold text-gray-900">Standards für automatisch angelegte Regionen</h3>
+          <p className="mt-1 text-sm text-gray-500">Diese Werte gelten nur beim ersten automatischen Anlegen. Jede Stadt kann danach separat angepasst werden.</p>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <label className="text-sm font-medium text-gray-700">Radius in km
+            <input type="number" min="1" step="0.1" value={defaultRadius} onChange={(event) => setDefaultRadius(event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100" />
+          </label>
+          <label className="text-sm font-medium text-gray-700">Mitglieder bis Start
+            <input type="number" min="1" value={defaultMembers} onChange={(event) => setDefaultMembers(event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100" />
+          </label>
+          <label className="text-sm font-medium text-gray-700">Hosts bis Start
+            <input type="number" min="1" value={defaultHosts} onChange={(event) => setDefaultHosts(event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100" />
+          </label>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            disabled={configMutation.isPending}
+            onClick={() => configMutation.mutate({
+              default_radius_km: defaultRadius,
+              default_member_threshold: Number(defaultMembers),
+              default_host_threshold: Number(defaultHosts),
+            })}
+            className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
+          >
+            <Save size={16} /> Standards speichern
+          </button>
+        </div>
+      </section>
+
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <Metric icon={MapPin} label="Regionen" value={regions.length} sub={`${totals.active} aktiv`} />
+        <Metric icon={MapPin} label="Regionen" value={regions.length} sub={`${totals.active} aktiv · ${totals.automatic} automatisch`} />
         <Metric icon={Activity} label="Im Aufbau" value={totals.waiting} sub={`${totals.paused} pausiert`} />
         <Metric icon={Users} label="Vorgemerkte Nutzer" value={totals.waitingMembers} sub="über alle Wartelisten" />
         <Metric icon={Gauge} label="Startbereite Hosts" value={totals.waitingHosts} sub="Host oder Gast & Host" />
@@ -463,6 +543,11 @@ export default function RegionsPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="truncate text-lg font-bold text-gray-900">{region.name}</h3>
                   <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClasses(region.status)}`}>{STATUS_LABELS[region.status]}</span>
+                  {region.creation_source !== 'manual' && (
+                    <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700">
+                      {region.creation_source === 'migration' ? 'Automatisch aus Bestand' : 'Automatisch'}
+                    </span>
+                  )}
                 </div>
                 <p className="mt-1 text-sm text-gray-500">Radius {Number(region.radius_km).toLocaleString('de-DE')} km · {region.center_latitude}, {region.center_longitude}</p>
               </div>
@@ -529,8 +614,8 @@ export default function RegionsPage() {
       {!regions.length && !formOpen && (
         <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-12 text-center">
           <MapPin size={28} className="mx-auto text-gray-300" />
-          <h3 className="mt-3 font-semibold text-gray-800">Noch keine Regionen angelegt</h3>
-          <p className="mt-1 text-sm text-gray-500">Lege zuerst Mittelpunkt, Radius und Startschwellen einer Stadt fest.</p>
+          <h3 className="mt-3 font-semibold text-gray-800">Noch keine Wohnorte erkannt</h3>
+          <p className="mt-1 text-sm text-gray-500">Beim Aktivieren werden Regionen automatisch aus den vorhandenen Wohnorten erzeugt. Manuell anlegen musst du nur Sonderfälle.</p>
         </div>
       )}
 

@@ -311,8 +311,16 @@ export const deleteIdea = (id: number) =>
 export const getRegionalConfiguration = () =>
   api.get('/api/admin/regional-configuration/1/').then((r) => r.data)
 
-export const patchRegionalConfiguration = (data: { regional_waitlist_enabled: boolean }) =>
+export const patchRegionalConfiguration = (data: {
+  regional_waitlist_enabled?: boolean
+  default_radius_km?: string
+  default_member_threshold?: number
+  default_host_threshold?: number
+}) =>
   api.patch('/api/admin/regional-configuration/1/', data).then((r) => r.data)
+
+export const activateRegionalWaitlist = () =>
+  api.post('/api/admin/regional-configuration/activate/').then((r) => r.data)
 
 export const migrateExistingRegions = (apply: boolean) =>
   api.post('/api/admin/regional-configuration/migrate-existing/', { apply }).then((r) => r.data)

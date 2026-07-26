@@ -44,6 +44,7 @@ interface Stats {
   regions: {
     enabled: boolean
     total: number
+    automatically_created: number
     by_status: Record<string, number>
     waiting_members: number
     waiting_hosts: number
@@ -342,7 +343,7 @@ export default function Dashboard() {
         <KPI icon={CalendarDays} label="Events gesamt" value={data.events.total} color="green" />
         <KPI icon={AlertTriangle} label="Neue Meldungen" value={data.reports.open} sub={`${data.reports.reviewing} in Prüfung`} color="red" />
         <KPI icon={Footprints} label="Safety Sessions live" value={liveSafetySessions} sub={`${analytics?.safe_walks.needs_attention ?? data.safe_walks.escalated ?? 0} mit Handlungsbedarf`} color="amber" />
-        <KPI icon={MapPin} label="City-Starts" value={data.regions?.by_status?.waitlist ?? 0} sub={`${data.regions?.waiting_members ?? 0} vorgemerkt · ${data.regions?.by_status?.active ?? 0} aktiv`} color="violet" />
+        <KPI icon={MapPin} label="City-Starts" value={data.regions?.by_status?.waitlist ?? 0} sub={`${data.regions?.waiting_members ?? 0} vorgemerkt · ${data.regions?.by_status?.active ?? 0} aktiv · ${data.regions?.automatically_created ?? 0} automatisch`} color="violet" />
       </div>
 
       <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
