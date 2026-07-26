@@ -270,6 +270,7 @@ export default function RegionsPage() {
   const [selectedRegionId, setSelectedRegionId] = useState<number | null>(null)
   const [actionError, setActionError] = useState('')
   const [migrationResult, setMigrationResult] = useState<MigrationResult | null>(null)
+  const [configurationIntent, setConfigurationIntent] = useState<'enable' | 'disable' | null>(null)
   const [defaultRadius, setDefaultRadius] = useState('40')
   const [defaultMembers, setDefaultMembers] = useState('20')
   const [defaultHosts, setDefaultHosts] = useState('2')
@@ -317,6 +318,8 @@ export default function RegionsPage() {
   const configMutation = useMutation({
     mutationFn: patchRegionalConfiguration,
     onSuccess: async () => {
+      setConfigurationIntent(null)
+      setActionError('')
       await queryClient.invalidateQueries({ queryKey: ['regional-configuration'] })
       await queryClient.invalidateQueries({ queryKey: ['stats'] })
     },
@@ -326,6 +329,7 @@ export default function RegionsPage() {
     mutationFn: activateRegionalWaitlist,
     onSuccess: async (result: MigrationResult) => {
       setMigrationResult(result)
+      setConfigurationIntent(null)
       setActionError('')
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['regional-configuration'] }),
@@ -415,7 +419,7 @@ export default function RegionsPage() {
       <ErrorBanner message={loadError ? getApiErrorMessage(loadError) : actionError} />
 
       <section className={`mb-6 rounded-2xl border p-5 ${configuration.data?.regional_waitlist_enabled ? 'border-green-200 bg-green-50' : 'border-gray-300 bg-gray-50'}`}>
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
           <div className="flex items-start gap-3">
             <span className={`rounded-xl p-2.5 ${configuration.data?.regional_waitlist_enabled ? 'bg-green-100 text-green-700' : 'border border-gray-200 bg-white text-gray-500'}`}>
               {configuration.data?.regional_waitlist_enabled ? <Activity size={20} /> : <CirclePause size={20} />}
@@ -431,10 +435,10 @@ export default function RegionsPage() {
                   {configuration.data?.regional_waitlist_enabled ? 'AKTIV' : 'DEAKTIVIERT'}
                 </span>
               </div>
-              <p className="mt-1 text-sm text-gray-600">
+              <p className="mt-1 max-w-4xl text-sm leading-5 text-gray-600" aria-live="polite">
                 {configuration.data?.regional_waitlist_enabled
-                  ? 'Ein: Neue Wohnorte werden als Wartelisten-Region vorbereitet. Normale Nutzer wählen Region und Startrolle; Testuser und Superuser behalten Vollzugriff.'
-                  : 'Aus: Normale Nutzer behalten Vollzugriff. Beim Aktivieren werden Wohnorte nur als Wartelisten-Regionen vorbereitet – niemand wird dadurch automatisch freigeschaltet.'}
+                  ? 'Neue Wohnorte werden für den City-Start vorbereitet. Normale Nutzer wählen Region und Startrolle; Testuser und Superuser behalten Vollzugriff.'
+                  : 'Der City-Start ist ausgeschaltet. Normale Nutzer haben Vollzugriff; bestehende Regionen und Wartelistendaten bleiben erhalten.'}
               </p>
               <p className="mt-1 text-xs text-gray-400">Zuletzt geändert: {formatDate(configuration.data?.updated_at ?? null)}</p>
             </div>
@@ -442,29 +446,77 @@ export default function RegionsPage() {
           <button
             type="button"
             disabled={configMutation.isPending || activationMutation.isPending}
-            onClick={() => {
-              if (configuration.data?.regional_waitlist_enabled) {
-                configMutation.mutate({ regional_waitlist_enabled: false })
-                return
-              }
-              if (window.confirm('City-Start jetzt aktivieren? Bestehende Wohnorte werden automatisch als Wartelisten-Regionen vorbereitet. Nutzer in diesen Städten wählen anschließend ihre Region und Startrolle. Nur bereits bewusst aktive Regionen gewähren Vollzugriff.')) {
-                activationMutation.mutate()
-              }
-            }}
-            className={`inline-flex w-full max-w-full items-center justify-center gap-3 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50 lg:w-auto ${
+            onClick={() => setConfigurationIntent(configuration.data?.regional_waitlist_enabled ? 'disable' : 'enable')}
+            className={`inline-flex min-h-11 w-full max-w-full items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold shadow-sm transition-colors disabled:opacity-50 lg:w-auto ${
               configuration.data?.regional_waitlist_enabled
                 ? 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-                : 'border-gray-900 bg-gray-900 text-white hover:bg-gray-800'
+                : 'border-violet-600 bg-violet-600 text-white hover:bg-violet-700'
             }`}
-            aria-label="Regionsbasierte Warteliste umschalten"
-            aria-pressed={Boolean(configuration.data?.regional_waitlist_enabled)}
+            aria-expanded={configurationIntent !== null}
+            aria-controls="city-start-confirmation"
           >
-            <span>{activationMutation.isPending ? 'Wohnorte werden vorbereitet…' : configuration.data?.regional_waitlist_enabled ? 'City-Start deaktivieren' : 'Wohnorte vorbereiten & City-Start aktivieren'}</span>
-            <span className={`relative h-6 w-11 shrink-0 overflow-hidden rounded-full transition-colors ${configuration.data?.regional_waitlist_enabled ? 'bg-green-600' : 'bg-white/25'}`}>
-              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${configuration.data?.regional_waitlist_enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-            </span>
+            {configuration.data?.regional_waitlist_enabled ? <CirclePause size={17} /> : <Play size={17} />}
+            <span>{configuration.data?.regional_waitlist_enabled ? 'City-Start ausschalten' : 'City-Start aktivieren'}</span>
           </button>
         </div>
+        {configurationIntent && (
+          <div
+            id="city-start-confirmation"
+            role="alert"
+            className={`mt-4 rounded-xl border p-4 ${
+              configurationIntent === 'disable'
+                ? 'border-amber-200 bg-amber-50'
+                : 'border-violet-200 bg-violet-50'
+            }`}
+          >
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">
+                  {configurationIntent === 'disable' ? 'City-Start wirklich ausschalten?' : 'City-Start jetzt aktivieren?'}
+                </p>
+                <p className="mt-1 max-w-3xl text-sm leading-5 text-gray-600">
+                  {configurationIntent === 'disable'
+                    ? 'Normale Nutzer erhalten wieder Vollzugriff. Regionen und Wartelistendaten werden nicht gelöscht.'
+                    : 'Bestehende Wohnorte werden vorbereitet. Nutzer wählen anschließend Region und Startrolle; nur bereits aktive Regionen gewähren Vollzugriff.'}
+                </p>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  disabled={configMutation.isPending || activationMutation.isPending}
+                  onClick={() => setConfigurationIntent(null)}
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="button"
+                  disabled={configMutation.isPending || activationMutation.isPending}
+                  onClick={() => {
+                    if (configurationIntent === 'disable') {
+                      configMutation.mutate({ regional_waitlist_enabled: false })
+                    } else {
+                      activationMutation.mutate()
+                    }
+                  }}
+                  className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50 ${
+                    configurationIntent === 'disable'
+                      ? 'bg-gray-900 hover:bg-gray-800'
+                      : 'bg-violet-600 hover:bg-violet-700'
+                  }`}
+                >
+                  {configMutation.isPending || activationMutation.isPending ? (
+                    <><RefreshCw className="animate-spin" size={16} /> Wird geändert…</>
+                  ) : configurationIntent === 'disable' ? (
+                    <><CirclePause size={16} /> Ausschalten</>
+                  ) : (
+                    <><Play size={16} /> Aktivieren</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="mt-4 flex flex-col gap-3 border-t border-gray-200/80 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-gray-800">Bestehende Wohnorte vorbereiten</p>
