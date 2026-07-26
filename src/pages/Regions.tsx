@@ -44,7 +44,7 @@ interface RegionalConfiguration {
 }
 
 interface NotificationJob {
-  status: string
+  status: 'pending' | 'processing' | 'completed' | 'failed'
   attempts: number
   recipient_count: number
   eligible_device_count: number
@@ -85,6 +85,8 @@ interface Membership {
   user_email: string
   user_display_name: string
   user_city: string
+  user_deleted_at?: string | null
+  user_is_deleted?: boolean
   is_test_user: boolean
   region_id: number
   region_name: string
@@ -160,6 +162,152 @@ function statusClasses(status: RegionStatus) {
   if (status === 'active') return 'border-green-200 bg-green-50 text-green-700'
   if (status === 'paused') return 'border-amber-200 bg-amber-50 text-amber-700'
   return 'border-violet-200 bg-violet-50 text-violet-700'
+}
+
+function membershipAccessLabel(membership: Membership) {
+  if (isDeletedMembership(membership)) return 'Kein Zugang'
+  if (membership.status === 'left') return 'Beendet'
+  if (membership.is_home) return 'Heimatregion'
+  if (membership.is_selected_visit) return 'Gastzugang aktiv'
+  if (membership.status === 'active') return 'Früherer Besuch'
+  return 'Ungültige Zuordnung'
+}
+
+function membershipAccessClasses(membership: Membership) {
+  if (isDeletedMembership(membership)) return 'bg-gray-100 text-gray-600'
+  if (membership.status === 'left') return 'bg-gray-100 text-gray-600'
+  if (membership.is_home) return 'bg-blue-50 text-blue-700'
+  if (membership.is_selected_visit) return 'bg-violet-100 text-violet-800'
+  if (membership.status === 'active') return 'bg-gray-100 text-gray-600'
+  return 'bg-red-50 text-red-700'
+}
+
+function membershipStatusLabel(membership: Membership) {
+  if (isDeletedMembership(membership)) return 'Konto gelöscht'
+  if (membership.status === 'waiting') return 'Wartet auf City-Start'
+  if (membership.status === 'active') return 'Aktiv'
+  return 'Beendet'
+}
+
+function membershipStatusClasses(membership: Membership) {
+  if (isDeletedMembership(membership)) return 'bg-red-50 text-red-700'
+  if (membership.status === 'waiting') return 'bg-amber-50 text-amber-700'
+  if (membership.status === 'active') return 'bg-green-50 text-green-700'
+  return 'bg-gray-100 text-gray-600'
+}
+
+function isDeletedMembership(membership: Membership) {
+  return Boolean(
+    membership.user_is_deleted
+    || membership.user_email.endsWith('@deleted.hostly.invalid'),
+  )
+}
+
+function deletedAccountLabel(membership: Membership) {
+  return membership.user_deleted_at
+    ? `Konto gelöscht am ${formatDate(membership.user_deleted_at)}`
+    : 'Konto gelöscht'
+}
+
+function notificationJobPresentation(job: NotificationJob) {
+  if (job.status === 'pending') {
+    return {
+      title: 'Startbenachrichtigung vorgemerkt',
+      detail: 'Der automatische Versand steht noch aus.',
+      classes: 'border-blue-200 bg-blue-50 text-blue-900',
+    }
+  }
+  if (job.status === 'processing') {
+    return {
+      title: 'Startbenachrichtigung wird versendet',
+      detail: 'Der Versand wird gerade verarbeitet.',
+      classes: 'border-blue-200 bg-blue-50 text-blue-900',
+    }
+  }
+  if (job.status === 'failed') {
+    return {
+      title: 'Versand technisch fehlgeschlagen',
+      detail: 'Der Versandjob konnte nach mehreren Versuchen nicht abgeschlossen werden.',
+      classes: 'border-red-200 bg-red-50 text-red-900',
+    }
+  }
+  if (job.recipient_count === 0) {
+    return {
+      title: 'Keine Startbenachrichtigung nötig',
+      detail: 'Beim Start gab es keine aktiven Heimatnutzer.',
+      classes: 'border-gray-200 bg-gray-50 text-gray-800',
+    }
+  }
+  if (job.accepted_device_count > 0 && job.rejected_device_count > 0) {
+    return {
+      title: 'Startbenachrichtigung teilweise angenommen',
+      detail: `${job.accepted_device_count} von ${job.eligible_device_count} Geräten wurden vom Push-Dienst angenommen.`,
+      classes: 'border-amber-200 bg-amber-50 text-amber-900',
+    }
+  }
+  if (job.accepted_device_count > 0) {
+    return {
+      title: 'Startbenachrichtigung an Push-Dienst übergeben',
+      detail: `${job.accepted_device_count} ${job.accepted_device_count === 1 ? 'Gerät wurde' : 'Geräte wurden'} vom Push-Dienst angenommen.`,
+      classes: 'border-green-200 bg-green-50 text-green-900',
+    }
+  }
+  if (job.rejected_device_count > 0) {
+    return {
+      title: 'Startbenachrichtigung abgelehnt',
+      detail: `${job.rejected_device_count} ${job.rejected_device_count === 1 ? 'Gerät wurde' : 'Geräte wurden'} vom Push-Dienst abgelehnt.`,
+      classes: 'border-red-200 bg-red-50 text-red-900',
+    }
+  }
+  if (job.no_device_recipient_count > 0) {
+    return {
+      title: 'Keine registrierten Push-Geräte',
+      detail: `${job.no_device_recipient_count} ${job.no_device_recipient_count === 1 ? 'Nutzer hat' : 'Nutzer haben'} kein aktives Push-Gerät.`,
+      classes: 'border-amber-200 bg-amber-50 text-amber-900',
+    }
+  }
+  if (job.disabled_recipient_count > 0) {
+    return {
+      title: 'Startbenachrichtigungen deaktiviert',
+      detail: `${job.disabled_recipient_count} ${job.disabled_recipient_count === 1 ? 'Nutzer hat' : 'Nutzer haben'} Regions-Benachrichtigungen deaktiviert.`,
+      classes: 'border-gray-200 bg-gray-50 text-gray-800',
+    }
+  }
+  return {
+    title: 'Keine Startbenachrichtigung versendet',
+    detail: 'Es gab kein erreichbares Push-Gerät.',
+    classes: 'border-amber-200 bg-amber-50 text-amber-900',
+  }
+}
+
+function canRetryLaunchNotification(job: NotificationJob) {
+  return job.status === 'failed'
+    || (
+      job.status === 'completed'
+      && job.accepted_device_count === 0
+      && job.rejected_device_count > 0
+    )
+}
+
+function RegionNotificationResult({ job }: { job: NotificationJob }) {
+  const presentation = notificationJobPresentation(job)
+  return (
+    <div className={`mt-4 rounded-xl border p-3 text-sm ${presentation.classes}`}>
+      <p className="font-semibold">{presentation.title}</p>
+      <p className="mt-1 text-xs opacity-80">{presentation.detail}</p>
+      {(job.disabled_recipient_count > 0 || job.no_device_recipient_count > 0 || job.rejected_device_count > 0) && (
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-80">
+          {job.rejected_device_count > 0 && <span>{job.rejected_device_count} abgelehnt</span>}
+          {job.no_device_recipient_count > 0 && <span>{job.no_device_recipient_count} ohne Push-Gerät</span>}
+          {job.disabled_recipient_count > 0 && <span>{job.disabled_recipient_count} deaktiviert</span>}
+        </div>
+      )}
+      {job.last_error && <p className="mt-2 text-xs font-medium text-red-700">{job.last_error}</p>}
+      {job.status === 'completed' && job.accepted_device_count > 0 && (
+        <p className="mt-2 text-[11px] opacity-65">Die Annahme durch den Push-Dienst ist keine Empfangs- oder Lesebestätigung.</p>
+      )}
+    </div>
+  )
 }
 
 function Metric({ label, value, sub, icon: Icon }: { label: string; value: string | number; sub: string; icon: typeof Users }) {
@@ -331,6 +479,8 @@ export default function RegionsPage() {
     waitingHosts: regions.reduce((sum, region) => sum + region.host_count, 0),
     visitors: regions.reduce((sum, region) => sum + region.visitor_count, 0),
     selectedVisitors: regions.reduce((sum, region) => sum + region.selected_visitor_count, 0),
+    eligibleLaunchDevices: regions.reduce((sum, region) => sum + (region.notification_job?.eligible_device_count ?? 0), 0),
+    acceptedLaunchDevices: regions.reduce((sum, region) => sum + (region.notification_job?.accepted_device_count ?? 0), 0),
   }), [regions])
   const migrationHasChanges = Boolean(migrationResult && (
     migrationResult.stats.regions_created > 0
@@ -656,7 +806,7 @@ export default function RegionsPage() {
         <Metric icon={Users} label="Heimat-Warteliste" value={totals.waitingMembers} sub="zählt für den City-Start" />
         <Metric icon={Gauge} label="Startbereite Hosts" value={totals.waitingHosts} sub="Host oder Gast & Host" />
         <Metric icon={MapPin} label="Gastzugänge" value={totals.selectedVisitors} sub={`${totals.visitors} Besuchende insgesamt`} />
-        <Metric icon={BellRing} label="Start-Pushes" value={regions.filter((region) => region.notification_job?.status === 'completed').length} sub="abgeschlossene Jobs" />
+        <Metric icon={BellRing} label="Push-Versand" value={`${totals.acceptedLaunchDevices}/${totals.eligibleLaunchDevices}`} sub="Geräte vom Push-Dienst angenommen" />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
@@ -696,15 +846,7 @@ export default function RegionsPage() {
               <p className="mt-2 text-xs text-gray-400">Gestartet: {formatDate(region.activated_at)}</p>
             )}
 
-            {region.notification_job && (
-              <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-semibold text-blue-900">Start-Push: {region.notification_job.status}</span>
-                  <span className="text-xs text-blue-700">{region.notification_job.accepted_device_count}/{region.notification_job.eligible_device_count} angenommen</span>
-                </div>
-                {region.notification_job.last_error && <p className="mt-1 text-xs text-red-700">{region.notification_job.last_error}</p>}
-              </div>
-            )}
+            {region.notification_job && <RegionNotificationResult job={region.notification_job} />}
 
             <div className="mt-4 flex flex-wrap gap-2 border-t border-gray-100 pt-4">
               <button
@@ -720,9 +862,9 @@ export default function RegionsPage() {
               >
                 <Users size={14} /> {selectedRegionId === region.id ? 'Personen ausblenden' : 'Personen & Gastzugänge'}
               </button>
-              {region.notification_job?.status === 'failed' && (
+              {region.notification_job && canRetryLaunchNotification(region.notification_job) && (
                 <button type="button" onClick={() => actionMutation.mutate({ id: region.id, action: 'retry-launch-push' })} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50">
-                  <BellRing size={14} /> Push erneut senden
+                  <BellRing size={14} /> Startbenachrichtigung erneut versuchen
                 </button>
               )}
               {region.status === 'paused' ? (
@@ -767,33 +909,44 @@ export default function RegionsPage() {
             <div className="p-5"><ErrorBanner message={getApiErrorMessage(membershipsQuery.error)} /></div>
           ) : memberships.length ? (
             <div className="admin-table admin-mobile-table overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <table className="w-full table-fixed divide-y divide-gray-200 text-sm">
+                <colgroup>
+                  <col className="w-[34%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[9%]" />
+                </colgroup>
                 <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
-                  <tr><th className="px-5 py-3">Person</th><th className="px-5 py-3">Zugang</th><th className="px-5 py-3">Startrolle</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Beginn</th><th className="px-5 py-3">Begrüßung</th></tr>
+                  <tr><th className="px-5 py-3">Person</th><th className="px-5 py-3">Zugang</th><th className="px-5 py-3">Rolle</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Beitritt</th><th className="whitespace-nowrap px-4 py-3 text-center">Begrüßt</th></tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {memberships.map((membership) => (
-                    <tr key={membership.id}>
-                      <td data-label="Person" className="px-5 py-3"><p className="font-medium text-gray-900">{membership.user_display_name || membership.user_email}</p><p className="text-xs text-gray-500">{membership.user_email} · {membership.user_city || 'Ohne Ort'}</p></td>
+                    <tr key={membership.id} className={isDeletedMembership(membership) ? 'bg-gray-50/60' : undefined}>
+                      <td data-label="Person" className="px-5 py-3">
+                        <p className={`font-medium ${isDeletedMembership(membership) ? 'text-gray-600' : 'text-gray-900'}`}>
+                          {isDeletedMembership(membership) ? 'Gelöschtes Mitglied' : membership.user_display_name || membership.user_email}
+                        </p>
+                        <p className="mt-0.5 break-words text-xs text-gray-500">
+                          {isDeletedMembership(membership)
+                            ? deletedAccountLabel(membership)
+                            : `${membership.user_email} · ${membership.user_city || 'Ohne Ort'}`}
+                        </p>
+                      </td>
                       <td data-label="Zugang" className="px-5 py-3">
-                        <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                          membership.is_home
-                            ? 'bg-blue-50 text-blue-700'
-                            : membership.is_selected_visit
-                              ? 'bg-violet-100 text-violet-800'
-                              : 'bg-gray-100 text-gray-600'
-                        }`}>
-                          {membership.is_home
-                            ? 'Heimatregion'
-                            : membership.is_selected_visit
-                              ? 'Gastzugang aktiv'
-                              : 'Besuch gespeichert'}
+                        <span className={`inline-flex max-w-full whitespace-normal rounded-full px-2 py-1 text-left text-xs font-semibold leading-4 ${membershipAccessClasses(membership)}`}>
+                          {membershipAccessLabel(membership)}
                         </span>
                       </td>
                       <td data-label="Startrolle" className="px-5 py-3 text-gray-700">{ROLE_LABELS[membership.launch_role]}</td>
-                      <td data-label="Status" className="px-5 py-3"><span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">{membership.status}</span></td>
-                      <td data-label="Beginn" className="px-5 py-3 text-gray-600">{formatDate(membership.visit_started_at || membership.joined_at)}</td>
-                      <td data-label="Begrüßung" className="px-5 py-3">{membership.join_welcome_seen_at ? <Check size={16} className="text-green-600" /> : '–'}</td>
+                      <td data-label="Status" className="px-5 py-3">
+                        <span className={`inline-flex max-w-full whitespace-normal rounded-full px-2 py-1 text-left text-xs font-medium leading-4 ${membershipStatusClasses(membership)}`}>
+                          {membershipStatusLabel(membership)}
+                        </span>
+                      </td>
+                      <td data-label="Beitritt" className="px-5 py-3 text-gray-600">{formatDate(membership.visit_started_at || membership.joined_at)}</td>
+                      <td data-label="Begrüßt" className="px-5 py-3 sm:text-center">{!isDeletedMembership(membership) && membership.join_welcome_seen_at ? <Check size={16} className="text-green-600 sm:mx-auto" /> : '–'}</td>
                     </tr>
                   ))}
                 </tbody>
