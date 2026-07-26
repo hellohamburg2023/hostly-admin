@@ -414,60 +414,77 @@ export default function RegionsPage() {
 
       <ErrorBanner message={loadError ? getApiErrorMessage(loadError) : actionError} />
 
-      <section className={`mb-6 rounded-2xl border p-5 ${configuration.data?.regional_waitlist_enabled ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white'}`}>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <section className={`mb-6 rounded-2xl border p-5 ${configuration.data?.regional_waitlist_enabled ? 'border-green-200 bg-green-50' : 'border-gray-300 bg-gray-50'}`}>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           <div className="flex items-start gap-3">
-            <span className={`rounded-xl p-2.5 ${configuration.data?.regional_waitlist_enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}><Activity size={20} /></span>
-            <div>
-              <h3 className="font-semibold text-gray-900">Regionsbasierte Warteliste</h3>
+            <span className={`rounded-xl p-2.5 ${configuration.data?.regional_waitlist_enabled ? 'bg-green-100 text-green-700' : 'border border-gray-200 bg-white text-gray-500'}`}>
+              {configuration.data?.regional_waitlist_enabled ? <Activity size={20} /> : <CirclePause size={20} />}
+            </span>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-semibold text-gray-900">Regionsbasierte Warteliste</h3>
+                <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold tracking-wide ${
+                  configuration.data?.regional_waitlist_enabled
+                    ? 'bg-green-700 text-white'
+                    : 'border border-gray-300 bg-white text-gray-600'
+                }`}>
+                  {configuration.data?.regional_waitlist_enabled ? 'AKTIV' : 'DEAKTIVIERT'}
+                </span>
+              </div>
               <p className="mt-1 text-sm text-gray-600">
                 {configuration.data?.regional_waitlist_enabled
-                  ? 'Aktiv: neue Wohnorte werden automatisch als Region angelegt. Testuser und Superuser behalten Vollzugriff.'
-                  : 'Deaktiviert: Beim Aktivieren werden bestehende Wohnorte automatisch als aktive Regionen vorbereitet; neue Wohnorte starten danach als Warteliste.'}
+                  ? 'Ein: Neue Wohnorte werden als Wartelisten-Region vorbereitet. Normale Nutzer wählen Region und Startrolle; Testuser und Superuser behalten Vollzugriff.'
+                  : 'Aus: Normale Nutzer behalten Vollzugriff. Beim Aktivieren werden Wohnorte nur als Wartelisten-Regionen vorbereitet – niemand wird dadurch automatisch freigeschaltet.'}
               </p>
               <p className="mt-1 text-xs text-gray-400">Zuletzt geändert: {formatDate(configuration.data?.updated_at ?? null)}</p>
             </div>
           </div>
+          <button
+            type="button"
+            disabled={configMutation.isPending || activationMutation.isPending}
+            onClick={() => {
+              if (configuration.data?.regional_waitlist_enabled) {
+                configMutation.mutate({ regional_waitlist_enabled: false })
+                return
+              }
+              if (window.confirm('City-Start jetzt aktivieren? Bestehende Wohnorte werden automatisch als Wartelisten-Regionen vorbereitet. Nutzer in diesen Städten wählen anschließend ihre Region und Startrolle. Nur bereits bewusst aktive Regionen gewähren Vollzugriff.')) {
+                activationMutation.mutate()
+              }
+            }}
+            className={`inline-flex w-full max-w-full items-center justify-center gap-3 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50 lg:w-auto ${
+              configuration.data?.regional_waitlist_enabled
+                ? 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                : 'border-gray-900 bg-gray-900 text-white hover:bg-gray-800'
+            }`}
+            aria-label="Regionsbasierte Warteliste umschalten"
+            aria-pressed={Boolean(configuration.data?.regional_waitlist_enabled)}
+          >
+            <span>{activationMutation.isPending ? 'Wohnorte werden vorbereitet…' : configuration.data?.regional_waitlist_enabled ? 'City-Start deaktivieren' : 'Wohnorte vorbereiten & City-Start aktivieren'}</span>
+            <span className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${configuration.data?.regional_waitlist_enabled ? 'bg-green-600' : 'bg-white/25'}`}>
+              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${configuration.data?.regional_waitlist_enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+            </span>
+          </button>
+        </div>
+        <div className="mt-4 flex flex-col gap-3 border-t border-gray-200/80 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-gray-800">Bestehende Wohnorte vorbereiten</p>
+            <p className="mt-0.5 text-xs text-gray-500">Prüft Bestandsdaten, ohne Wartelisten-Nutzer automatisch freizuschalten.</p>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" disabled={migrationMutation.isPending} onClick={() => migrationMutation.mutate(false)} className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-              Zuordnung prüfen
+              Vorbereitung prüfen
             </button>
             <button
               type="button"
               disabled={migrationMutation.isPending}
               onClick={() => {
-                if (window.confirm('Bestehende Nutzer und Events jetzt aktiven Regionen zuordnen? Nicht passende Nutzer erhalten beim Update die Regionsauswahl.')) {
+                if (window.confirm('Bestehende Wohnorte jetzt als Wartelisten-Regionen vorbereiten? Nutzer werden nur vorhandenen aktiven Regionen zugeordnet; alle anderen wählen Region und Startrolle selbst.')) {
                   migrationMutation.mutate(true)
                 }
               }}
               className="rounded-xl border border-violet-200 bg-white px-3 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-50"
             >
-              Bestehende zuordnen
-            </button>
-            <button
-              type="button"
-              disabled={configMutation.isPending || activationMutation.isPending}
-              onClick={() => {
-                if (configuration.data?.regional_waitlist_enabled) {
-                  configMutation.mutate({ regional_waitlist_enabled: false })
-                  return
-                }
-                if (window.confirm('City-Start jetzt aktivieren? Bestehende Wohnorte werden automatisch als aktive Regionen angelegt und zugeordnet. Neue Wohnorte starten anschließend mit den Standards als Warteliste.')) {
-                  activationMutation.mutate()
-                }
-              }}
-              className={`inline-flex items-center gap-3 rounded-xl border px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
-                configuration.data?.regional_waitlist_enabled
-                  ? 'border-green-200 bg-white text-green-700'
-                  : 'border-violet-200 bg-violet-600 text-white hover:bg-violet-700'
-              }`}
-              aria-label="Regionsbasierte Warteliste umschalten"
-              aria-pressed={Boolean(configuration.data?.regional_waitlist_enabled)}
-            >
-              <span>{activationMutation.isPending ? 'Wohnorte werden vorbereitet…' : configuration.data?.regional_waitlist_enabled ? 'City-Start deaktivieren' : 'Wohnorte vorbereiten & City-Start aktivieren'}</span>
-              <span className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${configuration.data?.regional_waitlist_enabled ? 'bg-green-600' : 'bg-white/30'}`}>
-                <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${configuration.data?.regional_waitlist_enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-              </span>
+              Wohnorte vorbereiten
             </button>
           </div>
         </div>
@@ -475,8 +492,8 @@ export default function RegionsPage() {
           <div className="mt-4 grid gap-2 rounded-xl border border-violet-100 bg-white/70 p-3 text-xs text-gray-600 sm:grid-cols-3 lg:grid-cols-5">
             <span><strong className="text-gray-900">{migrationResult.stats.regions_created}</strong> Regionen {migrationResult.applied ? 'angelegt' : 'neu erforderlich'}</span>
             <span><strong className="text-gray-900">{migrationResult.stats.users_assigned}</strong> Nutzer {migrationResult.applied ? 'zugeordnet' : 'zuordenbar'}</span>
-            <span><strong className="text-gray-900">{migrationResult.stats.users_unmatched}</strong> benötigen die Regionsauswahl</span>
-            <span><strong className="text-gray-900">{migrationResult.stats.users_requiring_selection}</strong> bleiben in vorhandenen Wartelisten</span>
+            <span><strong className="text-gray-900">{migrationResult.stats.users_unmatched}</strong> ohne verwertbaren Wohnort</span>
+            <span><strong className="text-gray-900">{migrationResult.stats.users_requiring_selection}</strong> brauchen die Regionsauswahl</span>
             <span><strong className="text-gray-900">{migrationResult.stats.events_assigned}</strong> Events {migrationResult.applied ? 'zugeordnet' : 'zuordenbar'}</span>
           </div>
         )}
