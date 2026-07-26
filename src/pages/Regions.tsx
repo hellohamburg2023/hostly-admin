@@ -460,8 +460,8 @@ export default function RegionsPage() {
             aria-pressed={Boolean(configuration.data?.regional_waitlist_enabled)}
           >
             <span>{activationMutation.isPending ? 'Wohnorte werden vorbereitet…' : configuration.data?.regional_waitlist_enabled ? 'City-Start deaktivieren' : 'Wohnorte vorbereiten & City-Start aktivieren'}</span>
-            <span className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${configuration.data?.regional_waitlist_enabled ? 'bg-green-600' : 'bg-white/25'}`}>
-              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${configuration.data?.regional_waitlist_enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+            <span className={`relative h-6 w-11 shrink-0 overflow-hidden rounded-full transition-colors ${configuration.data?.regional_waitlist_enabled ? 'bg-green-600' : 'bg-white/25'}`}>
+              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${configuration.data?.regional_waitlist_enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
             </span>
           </button>
         </div>
