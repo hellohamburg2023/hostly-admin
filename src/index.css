@@ -4,6 +4,37 @@
 html, body, #root { min-height: 100%; }
 body { margin: 0; font-family: system-ui, sans-serif; background: #f8f9fa; }
 
+/* Give every admin action a visible pressed state, including touch devices
+   where hover feedback never appears. Rounded links are button-like actions
+   throughout the admin (details, maps, navigation, and primary CTAs). */
+:where(button, [role="button"], a.rounded-lg, a.rounded-xl, a.rounded-full) {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition-duration: 120ms;
+  transition-property: color, background-color, border-color, opacity, box-shadow, filter, scale, translate;
+  transition-timing-function: ease-out;
+}
+
+:where(
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a.rounded-lg,
+  a.rounded-xl,
+  a.rounded-full
+):active {
+  filter: brightness(0.96) saturate(0.96);
+  scale: 0.975;
+  translate: 0 1px;
+  box-shadow: inset 0 2px 4px rgb(17 24 39 / 0.16);
+  transition-duration: 45ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(button, [role="button"], a.rounded-lg, a.rounded-xl, a.rounded-full) {
+    transition-duration: 0.001ms;
+  }
+}
+
 @keyframes hostly-autofill-start {
   from { opacity: 0.999; }
   to { opacity: 1; }
@@ -11,7 +42,7 @@ body { margin: 0; font-family: system-ui, sans-serif; background: #f8f9fa; }
 
 .login-page {
   display: flex;
-  align-items: center;
+  align-items: safe center;
   justify-content: center;
   background:
     radial-gradient(circle at 50% -10%, rgba(124, 58, 237, 0.11), transparent 34rem),

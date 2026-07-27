@@ -25,6 +25,14 @@ const contentTypes = {
   '.webmanifest': 'application/manifest+json',
 }
 
+function forwardedClientIp(request) {
+  const forwarded = String(request.headers['x-forwarded-for'] || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+  return forwarded.at(-1) || request.socket.remoteAddress || ''
+}
+
 async function readRequestBody(request) {
   const chunks = []
   let totalBytes = 0
@@ -52,6 +60,8 @@ async function proxyApiRequest(request, response) {
     'user-agent': request.headers['user-agent'] || 'Hostly-Admin-Proxy/1.0',
     'x-forwarded-proto': 'https',
   }
+  const clientIp = forwardedClientIp(request)
+  if (clientIp) headers['x-forwarded-for'] = clientIp
   for (const name of ['accept', 'accept-language', 'authorization', 'content-type']) {
     if (request.headers[name]) headers[name] = request.headers[name]
   }

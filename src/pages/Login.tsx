@@ -8,7 +8,8 @@ import {
 } from 'react'
 import { flushSync } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { AlertCircle, LoaderCircle, LockKeyhole, Mail } from 'lucide-react'
+import { ArrowLeft, AlertCircle, KeyRound, LoaderCircle, LockKeyhole, Mail, ShieldCheck } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 import { BrandLogo } from '../BrandLogo'
 import {
   appleErrorMessage,
@@ -17,10 +18,10 @@ import {
   startAppleSignIn,
   type AppleLoginConfig,
 } from '../appleAuth'
-import { getApiErrorMessage, getAppleLoginConfig } from '../api'
+import { getApiErrorMessage, getAppleLoginConfig, type AdminTotpChallenge } from '../api'
 import { useAuth } from '../useAuth'
 
-type BusyAction = 'password' | 'apple' | null
+type BusyAction = 'password' | 'totp' | 'apple' | null
 
 function AppleLogo() {
   return (
@@ -45,12 +46,14 @@ function nextPaint() {
 }
 
 export default function Login() {
-  const { user, signIn, signInWithApple } = useAuth()
+  const { user, signIn, confirmPasswordTotp, signInWithApple } = useAuth()
   const navigate = useNavigate()
   const formRef = useRef<HTMLFormElement>(null)
   const mountedRef = useRef(true)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [totpCode, setTotpCode] = useState('')
+  const [totpChallenge, setTotpChallenge] = useState<AdminTotpChallenge | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState<BusyAction>(null)
   const [appleConfig, setAppleConfig] = useState<AppleLoginConfig | null>(null)
@@ -125,13 +128,46 @@ export default function Login() {
     setPassword(credentials.password)
     setBusy('password')
     try {
-      await signIn(credentials.email, credentials.password)
-      navigate('/', { replace: true })
+      const challenge = await signIn(credentials.email, credentials.password)
+      if (mountedRef.current) {
+        setPassword('')
+        if (challenge) {
+          setTotpCode('')
+          setTotpChallenge(challenge)
+        } else {
+          navigate('/', { replace: true })
+        }
+      }
     } catch (loginError) {
       setError(getApiErrorMessage(loginError, 'Die Anmeldung ist fehlgeschlagen.'))
     } finally {
       if (mountedRef.current) setBusy(null)
     }
+  }
+
+  const handleTotpVerification = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setError('')
+    if (!totpChallenge || totpCode.length !== 6) {
+      setError('Bitte gib den sechsstelligen Authenticator-Code vollständig ein.')
+      return
+    }
+
+    setBusy('totp')
+    try {
+      await confirmPasswordTotp(totpChallenge.challenge_id, totpCode)
+      navigate('/', { replace: true })
+    } catch (totpError) {
+      setError(getApiErrorMessage(totpError, 'Der Authenticator-Code konnte nicht geprüft werden.'))
+    } finally {
+      if (mountedRef.current) setBusy(null)
+    }
+  }
+
+  const resetTotpStep = () => {
+    setTotpCode('')
+    setTotpChallenge(null)
+    setError('')
   }
 
   const handleAppleLogin = async () => {
@@ -189,8 +225,20 @@ export default function Login() {
         <header className="mb-6 flex flex-col items-center text-center">
           <BrandLogo size="lg" />
           <p className="mt-4 text-xs font-bold uppercase tracking-[0.2em] text-violet-600">Hostly Admin</p>
-          <h1 id="login-title" className="mt-1 text-2xl font-semibold tracking-tight text-gray-950">Willkommen zurück</h1>
-          <p className="mt-1 text-sm text-gray-500">Melde dich mit deinem Superuser-Konto an.</p>
+          <h1 id="login-title" className="mt-1 text-2xl font-semibold tracking-tight text-gray-950">
+            {totpChallenge?.setup_required
+              ? 'Authenticator einrichten'
+              : totpChallenge
+                ? 'Sicherheitscode eingeben'
+                : 'Willkommen zurück'}
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            {totpChallenge?.setup_required
+              ? `Schütze den Admin-Zugang für ${email}.`
+              : totpChallenge
+                ? 'Bestätige die Anmeldung mit deinem Authenticator.'
+              : 'Melde dich mit deinem Superuser-Konto an.'}
+          </p>
         </header>
 
         <div className="rounded-2xl border border-gray-200/90 bg-white p-5 shadow-[0_18px_50px_rgba(31,41,55,0.09)] sm:p-6">
@@ -201,97 +249,201 @@ export default function Login() {
             </div>
           )}
 
-          <form ref={formRef} onSubmit={handlePasswordLogin} className="space-y-4">
-            <div>
-              <label htmlFor="admin-email" className="mb-1.5 block text-sm font-medium text-gray-700">E-Mail</label>
-              <div className="relative">
-                <Mail size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true" />
-                <input
-                  id="admin-email"
-                  name="email"
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.currentTarget.value)}
-                  onInput={(event) => setEmail(event.currentTarget.value)}
-                  onAnimationStart={handleAutofill}
-                  autoComplete="username"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  inputMode="email"
-                  disabled={anyBusy}
-                  required
-                  autoFocus
-                  className="login-input h-12 w-full rounded-xl border border-gray-300 bg-white pl-10 pr-3.5 text-base text-gray-950 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100 disabled:cursor-wait disabled:bg-gray-50 sm:text-sm"
-                />
+          {totpChallenge ? (
+            <form onSubmit={handleTotpVerification} className="space-y-4">
+              {totpChallenge.setup_required && totpChallenge.provisioning_uri ? (
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-violet-100 bg-violet-50 px-3.5 py-3 text-sm leading-5 text-violet-900">
+                    <div className="flex items-start gap-2.5">
+                      <ShieldCheck size={19} className="mt-0.5 shrink-0" aria-hidden="true" />
+                      <span>
+                        Öffne die Apple Passwörter-App bzw. den iCloud-Schlüsselbund und scanne
+                        diesen QR-Code als Bestätigungscode.
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-center rounded-xl border border-gray-200 bg-white p-3">
+                    <QRCodeSVG
+                      value={totpChallenge.provisioning_uri}
+                      size={184}
+                      level="M"
+                      marginSize={1}
+                      title="QR-Code für den Hostly Admin-Authenticator"
+                    />
+                  </div>
+
+                  {totpChallenge.manual_key && (
+                    <details className="rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-600">
+                      <summary className="cursor-pointer font-medium text-gray-700">
+                        Schlüssel manuell eingeben
+                      </summary>
+                      <code className="mt-2 block break-all rounded-lg bg-white px-2.5 py-2 text-center text-xs font-semibold tracking-wider text-gray-900">
+                        {totpChallenge.manual_key}
+                      </code>
+                    </details>
+                  )}
+
+                  <p className="text-xs leading-5 text-gray-500">
+                    Gib anschließend den aktuell angezeigten Code ein. Die Einrichtung läuft in{' '}
+                    {Math.max(1, Math.ceil(totpChallenge.expires_in / 60))} Minuten ab.
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-violet-100 bg-violet-50 px-3.5 py-3 text-sm leading-5 text-violet-800">
+                  <div className="flex items-start gap-2.5">
+                    <ShieldCheck size={19} className="mt-0.5 shrink-0" aria-hidden="true" />
+                    <span>
+                      Öffne deinen im iCloud-Schlüsselbund gespeicherten Bestätigungscode.
+                      Jeder Code ist nur einmal verwendbar.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label htmlFor="admin-totp" className="mb-1.5 block text-sm font-medium text-gray-700">
+                  Authenticator-Code
+                </label>
+                <div className="relative">
+                  <KeyRound size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+                  <input
+                    id="admin-totp"
+                    name="totp"
+                    type="text"
+                    value={totpCode}
+                    onChange={(event) => setTotpCode(event.currentTarget.value.replace(/\D/g, '').slice(0, 6))}
+                    autoComplete="one-time-code"
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                    disabled={anyBusy}
+                    required
+                    autoFocus
+                    className="login-input h-12 w-full rounded-xl border border-gray-300 bg-white pl-10 pr-3.5 text-center text-lg font-semibold tracking-[0.32em] text-gray-950 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100 disabled:cursor-wait disabled:bg-gray-50"
+                  />
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label htmlFor="admin-password" className="mb-1.5 block text-sm font-medium text-gray-700">Passwort</label>
-              <div className="relative">
-                <LockKeyhole size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true" />
-                <input
-                  id="admin-password"
-                  name="password"
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.currentTarget.value)}
-                  onInput={(event) => setPassword(event.currentTarget.value)}
-                  onAnimationStart={handleAutofill}
-                  autoComplete="current-password"
+              <button
+                type="submit"
+                disabled={anyBusy || totpCode.length !== 6}
+                aria-busy={busy === 'totp'}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-violet-600 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-700 active:scale-[0.99] disabled:cursor-wait disabled:bg-violet-400"
+              >
+                {busy === 'totp' && <LoaderCircle size={18} className="animate-spin" aria-hidden="true" />}
+                {busy === 'totp'
+                  ? 'Code wird geprüft …'
+                  : totpChallenge.setup_required
+                    ? 'Authenticator aktivieren'
+                    : 'Anmeldung bestätigen'}
+              </button>
+
+              <button
+                type="button"
+                onClick={resetTotpStep}
+                disabled={anyBusy}
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 disabled:cursor-wait disabled:opacity-60"
+              >
+                <ArrowLeft size={17} aria-hidden="true" />
+                Zurück zur Anmeldung
+              </button>
+            </form>
+          ) : (
+            <>
+              <form ref={formRef} onSubmit={handlePasswordLogin} className="space-y-4">
+                <div>
+                  <label htmlFor="admin-email" className="mb-1.5 block text-sm font-medium text-gray-700">E-Mail</label>
+                  <div className="relative">
+                    <Mail size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+                    <input
+                      id="admin-email"
+                      name="email"
+                      type="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.currentTarget.value)}
+                      onInput={(event) => setEmail(event.currentTarget.value)}
+                      onAnimationStart={handleAutofill}
+                      autoComplete="username"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      inputMode="email"
+                      disabled={anyBusy}
+                      required
+                      autoFocus
+                      className="login-input h-12 w-full rounded-xl border border-gray-300 bg-white pl-10 pr-3.5 text-base text-gray-950 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100 disabled:cursor-wait disabled:bg-gray-50 sm:text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="admin-password" className="mb-1.5 block text-sm font-medium text-gray-700">Passwort</label>
+                  <div className="relative">
+                    <LockKeyhole size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+                    <input
+                      id="admin-password"
+                      name="password"
+                      type="password"
+                      value={password}
+                      onChange={(event) => setPassword(event.currentTarget.value)}
+                      onInput={(event) => setPassword(event.currentTarget.value)}
+                      onAnimationStart={handleAutofill}
+                      autoComplete="current-password"
+                      disabled={anyBusy}
+                      required
+                      className="login-input h-12 w-full rounded-xl border border-gray-300 bg-white pl-10 pr-3.5 text-base text-gray-950 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100 disabled:cursor-wait disabled:bg-gray-50 sm:text-sm"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
                   disabled={anyBusy}
-                  required
-                  className="login-input h-12 w-full rounded-xl border border-gray-300 bg-white pl-10 pr-3.5 text-base text-gray-950 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100 disabled:cursor-wait disabled:bg-gray-50 sm:text-sm"
-                />
+                  aria-busy={busy === 'password'}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-violet-600 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-700 active:scale-[0.99] disabled:cursor-wait disabled:bg-violet-500"
+                >
+                  {busy === 'password' && <LoaderCircle size={18} className="animate-spin" aria-hidden="true" />}
+                  {busy === 'password' ? 'Anmeldung läuft …' : 'Anmelden'}
+                </button>
+              </form>
+
+              <div className="my-5 flex items-center gap-3" aria-hidden="true">
+                <span className="h-px flex-1 bg-gray-200" />
+                <span className="text-xs font-medium text-gray-400">oder</span>
+                <span className="h-px flex-1 bg-gray-200" />
               </div>
-            </div>
 
-            <button
-              type="submit"
-              disabled={anyBusy}
-              aria-busy={busy === 'password'}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-violet-600 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-700 active:scale-[0.99] disabled:cursor-wait disabled:bg-violet-500"
-            >
-              {busy === 'password' && <LoaderCircle size={18} className="animate-spin" aria-hidden="true" />}
-              {busy === 'password' ? 'Anmeldung läuft …' : 'Anmelden'}
-            </button>
-          </form>
+              <button
+                type="button"
+                onClick={handleAppleLogin}
+                disabled={anyBusy || !appleReady}
+                aria-busy={busy === 'apple'}
+                className="flex h-12 w-full items-center justify-center gap-2.5 rounded-xl bg-black px-4 text-sm font-semibold text-white transition hover:bg-gray-900 active:scale-[0.99] disabled:cursor-wait disabled:bg-gray-800 disabled:text-white/85"
+              >
+                {busy === 'apple' ? (
+                  <>
+                    <LoaderCircle size={19} className="animate-spin" aria-hidden="true" />
+                    <span>Apple wird geprüft …</span>
+                  </>
+                ) : applePreparing ? (
+                  <>
+                    <LoaderCircle size={18} className="animate-spin" aria-hidden="true" />
+                    <span>Apple Login wird vorbereitet …</span>
+                  </>
+                ) : (
+                  <>
+                    <AppleLogo />
+                    <span>Mit Apple anmelden</span>
+                  </>
+                )}
+              </button>
 
-          <div className="my-5 flex items-center gap-3" aria-hidden="true">
-            <span className="h-px flex-1 bg-gray-200" />
-            <span className="text-xs font-medium text-gray-400">oder</span>
-            <span className="h-px flex-1 bg-gray-200" />
-          </div>
-
-          <button
-            type="button"
-            onClick={handleAppleLogin}
-            disabled={anyBusy || !appleReady}
-            aria-busy={busy === 'apple'}
-            className="flex h-12 w-full items-center justify-center gap-2.5 rounded-xl bg-black px-4 text-sm font-semibold text-white transition hover:bg-gray-900 active:scale-[0.99] disabled:cursor-wait disabled:bg-gray-800 disabled:text-white/85"
-          >
-            {busy === 'apple' ? (
-              <>
-                <LoaderCircle size={19} className="animate-spin" aria-hidden="true" />
-                <span>Apple wird geprüft …</span>
-              </>
-            ) : applePreparing ? (
-              <>
-                <LoaderCircle size={18} className="animate-spin" aria-hidden="true" />
-                <span>Apple Login wird vorbereitet …</span>
-              </>
-            ) : (
-              <>
-                <AppleLogo />
-                <span>Mit Apple anmelden</span>
-              </>
-            )}
-          </button>
-
-          {appleConfig && !appleConfig.enabled && (
-            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-              {appleConfig.reason || 'Apple Login ist derzeit nicht verfügbar.'}
-            </p>
+              {appleConfig && !appleConfig.enabled && (
+                <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                  {appleConfig.reason || 'Apple Login ist derzeit nicht verfügbar.'}
+                </p>
+              )}
+            </>
           )}
         </div>
 

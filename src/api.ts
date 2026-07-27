@@ -91,6 +91,20 @@ export interface AppleLoginPayload {
   fullName?: string
 }
 
+export interface AdminTotpChallenge {
+  totp_required: true
+  challenge_id: string
+  expires_in: number
+  setup_required: boolean
+  provisioning_uri?: string
+  manual_key?: string
+}
+
+export interface AuthTokens {
+  access: string
+  refresh: string
+}
+
 function authUrl(path: string) {
   return `${BASE_URL}${path}`
 }
@@ -148,13 +162,19 @@ function postAuthForm<T>(path: string, values: Record<string, string>) {
 }
 
 export const login = (email: string, password: string) =>
-  postAuthForm<{ access: string; refresh: string }>('/api/admin/login/', { email, password })
+  postAuthForm<AdminTotpChallenge | AuthTokens>('/api/admin/login/', { email, password })
+
+export const verifyAdminTotp = (challengeId: string, code: string) =>
+  postAuthForm<AuthTokens>('/api/admin/login/totp/', {
+    challenge_id: challengeId,
+    code,
+  })
 
 export const getAppleLoginConfig = () =>
   authFetch('/api/admin/login/apple/config/')
 
 export const loginWithApple = (payload: AppleLoginPayload) =>
-  postAuthForm<{ access: string; refresh: string }>('/api/admin/login/apple/', {
+  postAuthForm<AuthTokens>('/api/admin/login/apple/', {
     code: payload.authorizationCode,
     identity_token: payload.identityToken,
     state: payload.state,

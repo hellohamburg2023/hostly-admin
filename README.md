@@ -9,6 +9,10 @@ Enthalten sind unter anderem Moderation, Nutzer- und Eventdetails, Verifizierung
 - Admin-Login laeuft ueber `POST /api/admin/login/`.
 - Zugelassen sind nur Datenbank-Accounts mit `is_superuser=True`.
 - Normale App-User und reine `is_staff`-User duerfen die Admin-Webseite nicht nutzen.
+- Nach einem Passwort-Login ist ein TOTP-Code erforderlich. Beim ersten Login wird
+  ein QR-Code fuer die Apple Passwoerter-App bzw. den iCloud-Schluesselbund angezeigt.
+- Die QR-Einrichtung wird erst nach einem gueltigen sechsstelligen Code gespeichert.
+  Spaetere Logins geben den geheimen Schluessel nicht erneut aus.
 - Alternativ steht ein gehaerteter Apple-Web-Login mit einmaligem `state` und `nonce` zur Verfuegung.
 - Ein separater Passkey-Login ist nicht notwendig; Apple nutzt auf unterstuetzten Geraeten Face ID oder Touch ID.
 

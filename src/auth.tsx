@@ -2,6 +2,7 @@ import { useState, useEffect, type ReactNode } from 'react'
 import {
   login as apiLogin,
   loginWithApple as apiLoginWithApple,
+  verifyAdminTotp,
   api,
   clearAuthStorage,
   type AppleLoginPayload,
@@ -46,7 +47,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
+      clearAuthStorage()
+      setUser(null)
       const data = await apiLogin(email.trim(), password)
+      if ('access' in data) {
+        localStorage.setItem('access_token', data.access)
+        localStorage.setItem('refresh_token', data.refresh)
+        await loadAdminUser()
+        return null
+      }
+      return data
+    } catch (error) {
+      clearAuthStorage()
+      setUser(null)
+      throw error
+    }
+  }
+
+  const confirmPasswordTotp = async (challengeId: string, code: string) => {
+    try {
+      const data = await verifyAdminTotp(challengeId, code)
       localStorage.setItem('access_token', data.access)
       localStorage.setItem('refresh_token', data.refresh)
       await loadAdminUser()
@@ -75,5 +95,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }
 
-  return <AuthContext.Provider value={{ user, loading, signIn, signInWithApple, signOut }}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider
+      value={{ user, loading, signIn, confirmPasswordTotp, signInWithApple, signOut }}
+    >
+      {children}
+    </AuthContext.Provider>
+  )
 }

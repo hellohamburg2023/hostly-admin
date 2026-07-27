@@ -1,5 +1,5 @@
 import { createContext } from 'react'
-import type { AppleLoginPayload } from './api'
+import type { AdminTotpChallenge, AppleLoginPayload } from './api'
 
 export interface AuthUser {
   id: number
@@ -11,7 +11,8 @@ export interface AuthUser {
 export interface AuthCtx {
   user: AuthUser | null
   loading: boolean
-  signIn: (email: string, password: string) => Promise<void>
+  signIn: (email: string, password: string) => Promise<AdminTotpChallenge | null>
+  confirmPasswordTotp: (challengeId: string, code: string) => Promise<void>
   signInWithApple: (payload: AppleLoginPayload) => Promise<void>
   signOut: () => void
 }
