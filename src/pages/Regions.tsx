@@ -12,6 +12,7 @@ import {
   Plus,
   RefreshCw,
   Save,
+  Sparkles,
   Trash2,
   Users,
   X,
@@ -29,6 +30,7 @@ import {
   patchRegion,
   patchRegionalConfiguration,
   runRegionAction,
+  suggestRegionName,
 } from '../api'
 import { ErrorBanner } from '../adminUi'
 
@@ -64,6 +66,11 @@ interface Region {
   radius_km: string
   status: RegionStatus
   creation_source: 'manual' | 'automatic' | 'migration'
+  area_kind: 'city' | 'city_surrounding' | 'rural' | 'cultural'
+  anchor_name: string
+  official_anchor_key: string
+  official_district_key: string
+  assignment_explanation: string
   member_threshold: number
   host_threshold: number
   activated_at: string | null
@@ -77,6 +84,15 @@ interface Region {
   event_count: number
   notification_job: NotificationJob | null
   updated_at: string
+}
+
+interface RegionNameSuggestion {
+  regionId: number
+  name: string
+  reason: string
+  confidence: number
+  model: string
+  requires_confirmation: boolean
 }
 
 interface Membership {
@@ -424,6 +440,7 @@ export default function RegionsPage() {
   const [selectedRegionId, setSelectedRegionId] = useState<number | null>(null)
   const [actionError, setActionError] = useState('')
   const [migrationResult, setMigrationResult] = useState<MigrationResult | null>(null)
+  const [nameSuggestion, setNameSuggestion] = useState<RegionNameSuggestion | null>(null)
   const [configurationIntent, setConfigurationIntent] = useState<'enable' | 'disable' | null>(null)
   const [defaultRadius, setDefaultRadius] = useState('40')
   const [defaultMembers, setDefaultMembers] = useState('20')
@@ -550,6 +567,17 @@ export default function RegionsPage() {
     onSuccess: invalidate,
     onError: (error) => setActionError(getApiErrorMessage(error)),
   })
+  const nameSuggestionMutation = useMutation({
+    mutationFn: async (regionId: number) => {
+      const suggestion = await suggestRegionName(regionId)
+      return { ...suggestion, regionId } as RegionNameSuggestion
+    },
+    onSuccess: (suggestion) => {
+      setNameSuggestion(suggestion)
+      setActionError('')
+    },
+    onError: (error) => setActionError(getApiErrorMessage(error)),
+  })
   const migrationMutation = useMutation({
     mutationFn: migrateExistingRegions,
     onSuccess: async (result: MigrationResult) => {
@@ -578,6 +606,10 @@ export default function RegionsPage() {
     })
     setFormOpen(true)
     setActionError('')
+  }
+  const openSuggestedName = (region: Region, suggestion: RegionNameSuggestion) => {
+    openEdit(region)
+    setForm((current) => ({ ...current, name: suggestion.name }))
   }
 
   if (configuration.isLoading || regionsQuery.isLoading) {
@@ -809,6 +841,13 @@ export default function RegionsPage() {
         <Metric icon={BellRing} label="Push-Versand" value={`${totals.acceptedLaunchDevices}/${totals.eligibleLaunchDevices}`} sub="Geräte vom Push-Dienst angenommen" />
       </div>
 
+      <p className="mb-4 text-xs text-gray-400">
+        Amtliche Gemeindezuordnung Deutschland: © BKG 2026 ·{' '}
+        <a href="https://www.bkg.bund.de" target="_blank" rel="noreferrer" className="underline hover:text-violet-700">BKG</a>
+        {' · '}
+        <a href="https://www.govdata.de/dl-de/by-2-0" target="_blank" rel="noreferrer" className="underline hover:text-violet-700">dl-de/by-2.0</a>
+      </p>
+
       <div className="grid gap-4 xl:grid-cols-2">
         {regions.map((region) => (
           <article key={region.id} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -824,6 +863,15 @@ export default function RegionsPage() {
                   )}
                 </div>
                 <p className="mt-1 text-sm text-gray-500">Radius {Number(region.radius_km).toLocaleString('de-DE')} km · {region.center_latitude}, {region.center_longitude}</p>
+                {region.creation_source !== 'manual' && (
+                  <p className="mt-1 text-xs font-medium text-violet-700">
+                    {region.area_kind === 'cultural'
+                      ? 'Gewachsene Region'
+                      : region.area_kind === 'rural'
+                        ? 'Ländliche Sammelregion'
+                        : `Stadt & Umland${region.anchor_name ? ` · Anker: ${region.anchor_name}` : ''}`}
+                  </p>
+                )}
               </div>
               <button type="button" onClick={() => openEdit(region)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-violet-700" aria-label={`${region.name} bearbeiten`}><Pencil size={17} /></button>
             </div>
@@ -848,7 +896,44 @@ export default function RegionsPage() {
 
             {region.notification_job && <RegionNotificationResult job={region.notification_job} />}
 
+            {nameSuggestion?.regionId === region.id && (
+              <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50 p-4">
+                <div className="flex items-start gap-3">
+                  <span className="rounded-lg bg-white p-2 text-violet-700 shadow-sm"><Sparkles size={17} /></span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">Unverbindlicher KI-Vorschlag</p>
+                    <p className="mt-1 text-base font-bold text-gray-900">{nameSuggestion.name}</p>
+                    <p className="mt-1 text-sm text-gray-600">{nameSuggestion.reason}</p>
+                    <p className="mt-2 text-xs text-gray-500">
+                      Sicherheit {Math.round(nameSuggestion.confidence * 100)} % · wird erst nach deiner manuellen Freigabe gespeichert
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openSuggestedName(region, nameSuggestion)}
+                        className="rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-700"
+                      >
+                        Im Formular prüfen
+                      </button>
+                      <button type="button" onClick={() => setNameSuggestion(null)} className="rounded-lg px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-white">
+                        Verwerfen
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="mt-4 flex flex-wrap gap-2 border-t border-gray-100 pt-4">
+              <button
+                type="button"
+                onClick={() => nameSuggestionMutation.mutate(region.id)}
+                disabled={nameSuggestionMutation.isPending && nameSuggestionMutation.variables === region.id}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-50"
+              >
+                <Sparkles size={14} />
+                {nameSuggestionMutation.isPending && nameSuggestionMutation.variables === region.id ? 'Prüft Regionsname…' : 'Namensvorschlag'}
+              </button>
               <button
                 type="button"
                 onClick={() => setSelectedRegionId(selectedRegionId === region.id ? null : region.id)}

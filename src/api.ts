@@ -360,6 +360,9 @@ export const deleteRegion = (id: number) =>
 export const runRegionAction = (id: number, action: 'evaluate' | 'pause' | 'resume' | 'retry-launch-push') =>
   api.post(`/api/admin/regions/${id}/${action}/`).then((r) => r.data)
 
+export const suggestRegionName = (id: number) =>
+  api.post(`/api/admin/regions/${id}/suggest-name/`).then((r) => r.data)
+
 export const getRegionMemberships = (params?: Record<string, string>) =>
   api.get('/api/admin/region-memberships/', { params }).then((r) => r.data)
 
