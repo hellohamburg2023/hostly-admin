@@ -56,6 +56,27 @@ interface NotificationJob {
   no_device_recipient_count: number
   completed_at: string | null
   last_error: string
+  delivery_details: {
+    devices: NotificationDelivery[]
+    recipients_with_push_disabled: NotificationRecipient[]
+    recipients_without_active_device: NotificationRecipient[]
+  }
+}
+
+interface NotificationRecipient {
+  user_id: number
+  user_display_name: string
+  user_email: string
+}
+
+interface NotificationDelivery extends NotificationRecipient {
+  device_id: string
+  device_token_suffix: string
+  platform: 'ios' | 'android' | 'web'
+  status: 'accepted' | 'rejected'
+  provider: string
+  provider_status: number | null
+  reason: string
 }
 
 interface Region {
@@ -301,28 +322,72 @@ function canRetryLaunchNotification(job: NotificationJob) {
     || (
       job.status === 'completed'
       && job.accepted_device_count === 0
-      && job.rejected_device_count > 0
+      && job.recipient_count > 0
     )
+}
+
+function deviceLabel(delivery: NotificationDelivery) {
+  const platform = delivery.platform === 'ios' ? 'iPhone/iPad' : delivery.platform === 'android' ? 'Android' : 'Web'
+  const identifier = delivery.device_id ? `Gerät ${delivery.device_id.slice(-8)}` : `Token …${delivery.device_token_suffix}`
+  return `${platform} · ${identifier}`
 }
 
 function RegionNotificationResult({ job }: { job: NotificationJob }) {
   const presentation = notificationJobPresentation(job)
   return (
-    <div className={`mt-4 rounded-xl border p-3 text-sm ${presentation.classes}`}>
-      <p className="font-semibold">{presentation.title}</p>
-      <p className="mt-1 text-xs opacity-80">{presentation.detail}</p>
-      {(job.disabled_recipient_count > 0 || job.no_device_recipient_count > 0 || job.rejected_device_count > 0) && (
-        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-80">
-          {job.rejected_device_count > 0 && <span>{job.rejected_device_count} abgelehnt</span>}
-          {job.no_device_recipient_count > 0 && <span>{job.no_device_recipient_count} ohne Push-Gerät</span>}
-          {job.disabled_recipient_count > 0 && <span>{job.disabled_recipient_count} deaktiviert</span>}
-        </div>
-      )}
-      {job.last_error && <p className="mt-2 text-xs font-medium text-red-700">{job.last_error}</p>}
-      {job.status === 'completed' && job.accepted_device_count > 0 && (
-        <p className="mt-2 text-[11px] opacity-65">Die Annahme durch den Push-Dienst ist keine Empfangs- oder Lesebestätigung.</p>
-      )}
-    </div>
+    <details className={`group mt-4 rounded-xl border text-sm ${presentation.classes}`}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3 marker:content-none">
+        <span>
+          <span className="font-semibold">Start-Push</span>
+          <span className="ml-2 text-xs opacity-80">{job.completed_at ? `Letzter Versuch: ${formatDate(job.completed_at)}` : presentation.title}</span>
+        </span>
+        <span className="text-xs font-semibold opacity-80 group-open:hidden">Details</span>
+        <span className="hidden text-xs font-semibold opacity-80 group-open:inline">Einklappen</span>
+      </summary>
+      <div className="border-t border-current/15 px-3 pb-3 pt-2">
+        <p className="font-semibold">{presentation.title}</p>
+        <p className="mt-1 text-xs opacity-80">{presentation.detail}</p>
+        {(job.disabled_recipient_count > 0 || job.no_device_recipient_count > 0 || job.rejected_device_count > 0) && (
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-80">
+            {job.rejected_device_count > 0 && <span>{job.rejected_device_count} abgelehnt</span>}
+            {job.no_device_recipient_count > 0 && <span>{job.no_device_recipient_count} ohne Push-Gerät</span>}
+            {job.disabled_recipient_count > 0 && <span>{job.disabled_recipient_count} deaktiviert</span>}
+          </div>
+        )}
+        {job.delivery_details.devices.length > 0 && (
+          <div className="mt-3">
+            <p className="text-xs font-semibold uppercase tracking-wide opacity-70">Versandte Geräte</p>
+            <ul className="mt-1 divide-y divide-current/10 rounded-lg border border-current/10 bg-white/55 text-xs">
+              {job.delivery_details.devices.map((delivery) => (
+                <li key={`${delivery.user_id}-${delivery.device_id}-${delivery.device_token_suffix}`} className="p-2">
+                  <p className="font-semibold text-gray-900">{delivery.user_display_name || delivery.user_email}</p>
+                  <p className="text-gray-600">{delivery.user_email} · {deviceLabel(delivery)}</p>
+                  <p className={delivery.status === 'accepted' ? 'text-green-700' : 'text-red-700'}>
+                    {delivery.status === 'accepted' ? 'Vom Push-Dienst angenommen' : `Abgelehnt${delivery.reason ? `: ${delivery.reason}` : ''}`}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {job.delivery_details.recipients_without_active_device.length > 0 && (
+          <div className="mt-3">
+            <p className="text-xs font-semibold uppercase tracking-wide opacity-70">Ohne aktives Push-Gerät</p>
+            <p className="mt-1 text-xs opacity-80">{job.delivery_details.recipients_without_active_device.map((recipient) => `${recipient.user_display_name || recipient.user_email} (${recipient.user_email})`).join(', ')}</p>
+          </div>
+        )}
+        {job.delivery_details.recipients_with_push_disabled.length > 0 && (
+          <div className="mt-3">
+            <p className="text-xs font-semibold uppercase tracking-wide opacity-70">Regions-Push deaktiviert</p>
+            <p className="mt-1 text-xs opacity-80">{job.delivery_details.recipients_with_push_disabled.map((recipient) => `${recipient.user_display_name || recipient.user_email} (${recipient.user_email})`).join(', ')}</p>
+          </div>
+        )}
+        {job.last_error && <p className="mt-2 text-xs font-medium text-red-700">{job.last_error}</p>}
+        {job.status === 'completed' && job.accepted_device_count > 0 && (
+          <p className="mt-2 text-[11px] opacity-65">Die Annahme durch den Push-Dienst ist keine Empfangs- oder Lesebestätigung.</p>
+        )}
+      </div>
+    </details>
   )
 }
 
