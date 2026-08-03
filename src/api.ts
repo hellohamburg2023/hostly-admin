@@ -220,6 +220,11 @@ export const bulkSetEventTestStatus = (eventIds: number[], isTestEvent: boolean)
     is_test_event: isTestEvent,
   }).then((r) => r.data)
 
+export const bulkDeleteEvents = (eventIds: number[]) =>
+  api.delete('/api/admin/events/bulk-delete/', {
+    data: { event_ids: eventIds },
+  }).then((r) => r.data)
+
 export const deleteEvent = (id: number) =>
   api.delete(`/api/admin/events/${id}/`).then((r) => r.data)
 

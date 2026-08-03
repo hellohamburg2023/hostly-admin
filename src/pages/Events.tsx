@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { bulkSetEventTestStatus, deleteEvent, getApiErrorMessage, getEvents, pageResults, patchEvent } from '../api'
+import { bulkDeleteEvents, bulkSetEventTestStatus, deleteEvent, getApiErrorMessage, getEvents, pageResults, patchEvent } from '../api'
 import { formatDate } from '../adminFormat'
 import { Badge, ErrorBanner, Pagination } from '../adminUi'
 import { Calendar, Eye, MapPin, Search, Trash2, Users } from 'lucide-react'
@@ -75,6 +75,7 @@ export default function EventsPage() {
   const [testEventFilter, setTestEventFilter] = useState('')
   const [cursor, setCursor] = useState('')
   const [selectedEventIds, setSelectedEventIds] = useState<Set<number>>(new Set())
+  const [actionMessage, setActionMessage] = useState('')
   const qc = useQueryClient()
 
   const params: Record<string, string> = {}
@@ -98,7 +99,12 @@ export default function EventsPage() {
   })
   const deleteMutation = useMutation({
     mutationFn: deleteEvent,
-    onSuccess: () => {
+    onSuccess: (_, deletedEventId) => {
+      setSelectedEventIds((current) => {
+        const next = new Set(current)
+        next.delete(deletedEventId)
+        return next
+      })
       qc.invalidateQueries({ queryKey: ['events'] })
       qc.invalidateQueries({ queryKey: ['stats'] })
       qc.invalidateQueries({ queryKey: ['analytics'] })
@@ -107,7 +113,27 @@ export default function EventsPage() {
   const bulkTestMutation = useMutation({
     mutationFn: ({ eventIds, isTestEvent }: { eventIds: number[]; isTestEvent: boolean }) =>
       bulkSetEventTestStatus(eventIds, isTestEvent),
-    onSuccess: () => {
+    onMutate: () => setActionMessage(''),
+    onSuccess: (result, { eventIds, isTestEvent }) => {
+      const updatedCount = typeof result?.updated_count === 'number' ? result.updated_count : eventIds.length
+      setActionMessage(updatedCount === 0
+        ? 'Die ausgewählten Events hatten bereits diesen Teststatus.'
+        : isTestEvent
+          ? `${updatedCount} ${updatedCount === 1 ? 'Event wurde' : 'Events wurden'} als Testevent markiert.`
+          : `Der Teststatus wurde bei ${updatedCount} ${updatedCount === 1 ? 'Event' : 'Events'} entfernt.`)
+      setSelectedEventIds(new Set())
+      qc.invalidateQueries({ queryKey: ['events'] })
+      qc.invalidateQueries({ queryKey: ['users'] })
+      qc.invalidateQueries({ queryKey: ['stats'] })
+      qc.invalidateQueries({ queryKey: ['analytics'] })
+    },
+  })
+  const bulkDeleteMutation = useMutation({
+    mutationFn: bulkDeleteEvents,
+    onMutate: () => setActionMessage(''),
+    onSuccess: (result, eventIds) => {
+      const deletedCount = typeof result?.deleted_count === 'number' ? result.deleted_count : eventIds.length
+      setActionMessage(`${deletedCount} ${deletedCount === 1 ? 'Event wurde' : 'Events wurden'} endgültig gelöscht.`)
       setSelectedEventIds(new Set())
       qc.invalidateQueries({ queryKey: ['events'] })
       qc.invalidateQueries({ queryKey: ['users'] })
@@ -119,6 +145,8 @@ export default function EventsPage() {
   const setFilter = (setter: (value: string) => void, value: string) => {
     setter(value)
     setCursor('')
+    setSelectedEventIds(new Set())
+    setActionMessage('')
   }
   const errorMessage = error
     ? getApiErrorMessage(error)
@@ -128,7 +156,9 @@ export default function EventsPage() {
         ? getApiErrorMessage(deleteMutation.error)
         : bulkTestMutation.error
           ? getApiErrorMessage(bulkTestMutation.error)
-          : ''
+          : bulkDeleteMutation.error
+            ? getApiErrorMessage(bulkDeleteMutation.error)
+            : ''
 
   const visibleEventIds = events.map((event) => event.id)
   const allVisibleSelected = visibleEventIds.length > 0 && visibleEventIds.every((eventId) => selectedEventIds.has(eventId))
@@ -150,11 +180,24 @@ export default function EventsPage() {
   }
   const setSelectedTestStatus = (isTestEvent: boolean) => {
     const eventIds = Array.from(selectedEventIds)
+    if (eventIds.length === 0) return
+    const selectionLabel = eventIds.length === 1 ? '1 ausgewähltes Treffen' : `${eventIds.length} ausgewählte Treffen`
     if (isTestEvent && !window.confirm(
-      `${eventIds.length} ausgewählte Treffen als Testevents markieren? Sie sind danach nur noch für Testuser sichtbar und zählen nicht zur Aktivität.`,
+      `${selectionLabel} als Testevent markieren? Danach ${eventIds.length === 1 ? 'ist es' : 'sind sie'} nur noch für Testuser sichtbar und ${eventIds.length === 1 ? 'zählt' : 'zählen'} nicht zur Aktivität.`,
     )) return
     bulkTestMutation.mutate({ eventIds, isTestEvent })
   }
+  const deleteSelectedEvents = () => {
+    const eventIds = Array.from(selectedEventIds)
+    if (eventIds.length === 0) return
+    const selectionLabel = eventIds.length === 1 ? '1 ausgewähltes Event' : `${eventIds.length} ausgewählte Events`
+    const confirmation = prompt(
+      `${selectionLabel} endgültig löschen? Alle zugehörigen Daten werden entfernt.\n\nTippe LÖSCHEN zur Bestätigung.`,
+    )
+    if (confirmation === 'LÖSCHEN') bulkDeleteMutation.mutate(eventIds)
+  }
+  const bulkActionPending = bulkTestMutation.isPending || bulkDeleteMutation.isPending
+  const someVisibleSelected = visibleEventIds.some((eventId) => selectedEventIds.has(eventId))
 
   return (
     <div className="p-8">
@@ -164,6 +207,70 @@ export default function EventsPage() {
       </div>
 
       <ErrorBanner message={errorMessage} />
+      {actionMessage && (
+        <div role="status" className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-800">
+          {actionMessage}
+        </div>
+      )}
+
+      <div className="mb-5 flex flex-col gap-3 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 xl:flex-row xl:items-center">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 xl:mr-auto">
+          <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-violet-950">
+            <input
+              ref={(input) => {
+                if (input) input.indeterminate = someVisibleSelected && !allVisibleSelected
+              }}
+              type="checkbox"
+              checked={allVisibleSelected}
+              onChange={toggleVisibleEvents}
+              disabled={visibleEventIds.length === 0 || bulkActionPending}
+              className="h-4 w-4 rounded border-violet-300 text-violet-600 focus:ring-violet-500 disabled:opacity-50"
+            />
+            {visibleEventIds.length === 1
+              ? 'Das angezeigte Event auswählen'
+              : `Alle ${visibleEventIds.length} angezeigten Events auswählen`}
+          </label>
+          <span className="text-sm text-violet-800" aria-live="polite">
+            {selectedEventIds.size} ausgewählt
+          </span>
+          {selectedEventIds.size > 0 && (
+            <button
+              type="button"
+              onClick={() => setSelectedEventIds(new Set())}
+              disabled={bulkActionPending}
+              className="text-sm font-medium text-violet-700 hover:text-violet-950 disabled:opacity-50"
+            >
+              Auswahl aufheben
+            </button>
+          )}
+        </div>
+        <div className="grid w-full gap-2 sm:grid-cols-2 xl:flex xl:w-auto">
+          <button
+            type="button"
+            onClick={() => setSelectedTestStatus(true)}
+            disabled={selectedEventIds.size === 0 || bulkActionPending}
+            className="rounded-lg bg-violet-700 px-3 py-2 text-sm font-medium text-white hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Als Testevents markieren
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedTestStatus(false)}
+            disabled={selectedEventIds.size === 0 || bulkActionPending}
+            className="rounded-lg border border-violet-300 bg-white px-3 py-2 text-sm font-medium text-violet-800 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Teststatus entfernen
+          </button>
+          <button
+            type="button"
+            onClick={deleteSelectedEvents}
+            disabled={selectedEventIds.size === 0 || bulkActionPending}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 sm:col-span-2 xl:col-span-1"
+          >
+            <Trash2 size={14} /> {bulkDeleteMutation.isPending ? 'Wird gelöscht…' : 'Ausgewählte löschen'}
+          </button>
+        </div>
+      </div>
 
       <div className="admin-filters flex flex-wrap gap-3 mb-5">
         <div className="relative flex-1 min-w-64 max-w-sm">
@@ -213,36 +320,6 @@ export default function EventsPage() {
         </select>
       </div>
 
-      {selectedEventIds.size > 0 && (
-        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3">
-          <span className="mr-auto text-sm font-medium text-violet-900">{selectedEventIds.size} ausgewählt</span>
-          <button
-            type="button"
-            onClick={() => setSelectedTestStatus(true)}
-            disabled={bulkTestMutation.isPending}
-            className="rounded-lg bg-violet-700 px-3 py-2 text-sm font-medium text-white hover:bg-violet-800 disabled:opacity-50"
-          >
-            Als Testevents markieren
-          </button>
-          <button
-            type="button"
-            onClick={() => setSelectedTestStatus(false)}
-            disabled={bulkTestMutation.isPending}
-            className="rounded-lg border border-violet-300 bg-white px-3 py-2 text-sm font-medium text-violet-800 hover:bg-violet-100 disabled:opacity-50"
-          >
-            Teststatus entfernen
-          </button>
-          <button
-            type="button"
-            onClick={() => setSelectedEventIds(new Set())}
-            disabled={bulkTestMutation.isPending}
-            className="px-2 py-2 text-sm text-gray-600 hover:text-gray-900 disabled:opacity-50"
-          >
-            Auswahl aufheben
-          </button>
-        </div>
-      )}
-
       <div className="admin-table admin-mobile-table overflow-x-auto rounded-xl border border-gray-200 bg-white">
         {isLoading ? (
           <div className="p-8 text-center text-gray-400">Laden...</div>
@@ -255,8 +332,9 @@ export default function EventsPage() {
                     type="checkbox"
                     checked={allVisibleSelected}
                     onChange={toggleVisibleEvents}
+                    disabled={visibleEventIds.length === 0 || bulkActionPending}
                     aria-label="Alle angezeigten Events auswählen"
-                    className="h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                    className="h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500 disabled:opacity-50"
                   />
                 </th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Event</th>
@@ -274,8 +352,9 @@ export default function EventsPage() {
                       type="checkbox"
                       checked={selectedEventIds.has(event.id)}
                       onChange={() => toggleEvent(event.id)}
+                      disabled={bulkActionPending}
                       aria-label={`Event ${event.title} auswählen`}
-                      className="h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                      className="h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500 disabled:opacity-50"
                     />
                   </td>
                   <td data-label="Event" className="px-4 py-3">
@@ -351,7 +430,14 @@ export default function EventsPage() {
           </table>
         )}
       </div>
-      <Pagination data={page} onCursor={setCursor} />
+      <Pagination
+        data={page}
+        onCursor={(nextCursor) => {
+          setCursor(nextCursor)
+          setSelectedEventIds(new Set())
+          setActionMessage('')
+        }}
+      />
     </div>
   )
 }
