@@ -56,6 +56,7 @@ interface EventDetail {
   request_count: number
   report_count: number
   counts_toward_activity: boolean
+  is_test_event: boolean
   women_only: boolean
   safety_badges: string[]
   rules: string
@@ -212,7 +213,8 @@ export default function EventDetailPage() {
               <Badge className={event.safety_badges?.includes('manual_approval') ? 'bg-amber-100 text-amber-700' : 'bg-teal-100 text-teal-700'}>
                 {event.safety_badges?.includes('manual_approval') ? 'Freigabe nötig' : 'Direkte Teilnahme'}
               </Badge>
-              {!event.counts_toward_activity && <Badge className="bg-sky-100 text-sky-700">Beta-Test · zählt nicht</Badge>}
+              {event.is_test_event && <Badge className="bg-violet-100 text-violet-700">Testevent · nur Testuser</Badge>}
+              {!event.counts_toward_activity && <Badge className="bg-sky-100 text-sky-700">Zählt nicht zur Aktivität</Badge>}
               {event.report_count > 0 && <Badge className="bg-red-100 text-red-700">{event.report_count} Meldungen</Badge>}
             </div>
             <h2 className="break-words text-xl font-bold text-gray-900">{event.title}</h2>
@@ -229,11 +231,25 @@ export default function EventDetailPage() {
             )}
             <button
               type="button"
-              onClick={() => mutation.mutate({ counts_toward_activity: !event.counts_toward_activity })}
+              onClick={() => {
+                if (!event.is_test_event && !window.confirm(
+                  'Dieses Treffen als Testevent markieren? Es ist danach nur noch für Testuser sichtbar und zählt nicht zur Aktivität.',
+                )) return
+                mutation.mutate({ is_test_event: !event.is_test_event })
+              }}
               disabled={mutation.isPending}
+              className="inline-flex items-center gap-2 rounded-lg bg-violet-50 px-3 py-2 text-sm font-medium text-violet-700 hover:bg-violet-100 disabled:opacity-50"
+            >
+              {event.is_test_event ? 'Teststatus entfernen' : 'Als Testevent markieren'}
+            </button>
+            <button
+              type="button"
+              onClick={() => mutation.mutate({ counts_toward_activity: !event.counts_toward_activity })}
+              disabled={mutation.isPending || event.is_test_event}
+              title={event.is_test_event ? 'Testevents zählen grundsätzlich nicht zur Aktivität' : undefined}
               className="inline-flex items-center gap-2 rounded-lg bg-sky-50 px-3 py-2 text-sm font-medium text-sky-700 hover:bg-sky-100 disabled:opacity-50"
             >
-              {event.counts_toward_activity ? 'Als Beta-Test markieren' : 'Als reguläres Event zählen'}
+              {event.counts_toward_activity ? 'Von Aktivitätszählung ausschließen' : 'Zur Aktivität zählen'}
             </button>
             <button
               type="button"
@@ -266,7 +282,8 @@ export default function EventDetailPage() {
                 <DetailRow label="Ende" value={formatDate(event.ends_at, true)} />
                 <DetailRow label="Teilnehmer" value={`${event.participant_count}/${event.participant_limit} · min. ${event.min_participants}`} />
                 <DetailRow label="Teilnahme" value={participationMode(event)} />
-                <DetailRow label="Aktivitätszählung" value={event.counts_toward_activity ? 'Zählt für Host und Teilnehmende' : 'Beta-Test – zählt nicht für Host und Teilnehmende'} />
+                <DetailRow label="Sichtbarkeit" value={event.is_test_event ? 'Nur für Testuser sichtbar' : 'Regulär sichtbar'} />
+                <DetailRow label="Aktivitätszählung" value={event.counts_toward_activity ? 'Zählt für Host und Teilnehmende' : 'Zählt nicht für Host und Teilnehmende'} />
                 <DetailRow label="Weitere Sicherheitsbadges" value={safetyBadgeLabels(event)} />
                 <DetailRow label="Altersbereich" value={event.age_restriction_enabled ? `${event.min_age ?? '?'} bis ${event.max_age ?? '?'} Jahre` : 'Keine Altersbeschränkung'} />
                 <DetailRow label="Interessen" value={event.interests?.join(', ')} />

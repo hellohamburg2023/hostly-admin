@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { deleteEvent, getApiErrorMessage, getEvents, pageResults, patchEvent } from '../api'
+import { bulkSetEventTestStatus, deleteEvent, getApiErrorMessage, getEvents, pageResults, patchEvent } from '../api'
 import { formatDate } from '../adminFormat'
 import { Badge, ErrorBanner, Pagination } from '../adminUi'
 import { Calendar, Eye, MapPin, Search, Trash2, Users } from 'lucide-react'
@@ -22,6 +22,7 @@ interface Event {
   resolved_report_count: number
   dismissed_report_count: number
   counts_toward_activity: boolean
+  is_test_event: boolean
   women_only: boolean
   safety_badges: string[]
   host_id: number
@@ -71,7 +72,9 @@ export default function EventsPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [city, setCity] = useState('')
   const [moderationFilter, setModerationFilter] = useState('')
+  const [testEventFilter, setTestEventFilter] = useState('')
   const [cursor, setCursor] = useState('')
+  const [selectedEventIds, setSelectedEventIds] = useState<Set<number>>(new Set())
   const qc = useQueryClient()
 
   const params: Record<string, string> = {}
@@ -79,10 +82,11 @@ export default function EventsPage() {
   if (statusFilter) params.status = statusFilter
   if (city) params.city = city
   if (moderationFilter) params.moderation = moderationFilter
+  if (testEventFilter) params.is_test_event = testEventFilter
   if (cursor) params.cursor = cursor
 
   const { data, isLoading, error } = useQuery<Page<Event> | Event[]>({
-    queryKey: ['events', q, statusFilter, city, moderationFilter, cursor],
+    queryKey: ['events', q, statusFilter, city, moderationFilter, testEventFilter, cursor],
     queryFn: () => getEvents(params),
   })
   const events = pageResults<Event>(data)
@@ -100,6 +104,17 @@ export default function EventsPage() {
       qc.invalidateQueries({ queryKey: ['analytics'] })
     },
   })
+  const bulkTestMutation = useMutation({
+    mutationFn: ({ eventIds, isTestEvent }: { eventIds: number[]; isTestEvent: boolean }) =>
+      bulkSetEventTestStatus(eventIds, isTestEvent),
+    onSuccess: () => {
+      setSelectedEventIds(new Set())
+      qc.invalidateQueries({ queryKey: ['events'] })
+      qc.invalidateQueries({ queryKey: ['users'] })
+      qc.invalidateQueries({ queryKey: ['stats'] })
+      qc.invalidateQueries({ queryKey: ['analytics'] })
+    },
+  })
 
   const setFilter = (setter: (value: string) => void, value: string) => {
     setter(value)
@@ -111,7 +126,35 @@ export default function EventsPage() {
       ? getApiErrorMessage(mutation.error)
       : deleteMutation.error
         ? getApiErrorMessage(deleteMutation.error)
-        : ''
+        : bulkTestMutation.error
+          ? getApiErrorMessage(bulkTestMutation.error)
+          : ''
+
+  const visibleEventIds = events.map((event) => event.id)
+  const allVisibleSelected = visibleEventIds.length > 0 && visibleEventIds.every((eventId) => selectedEventIds.has(eventId))
+  const toggleEvent = (eventId: number) => {
+    setSelectedEventIds((current) => {
+      const next = new Set(current)
+      if (next.has(eventId)) next.delete(eventId)
+      else next.add(eventId)
+      return next
+    })
+  }
+  const toggleVisibleEvents = () => {
+    setSelectedEventIds((current) => {
+      const next = new Set(current)
+      if (allVisibleSelected) visibleEventIds.forEach((eventId) => next.delete(eventId))
+      else visibleEventIds.forEach((eventId) => next.add(eventId))
+      return next
+    })
+  }
+  const setSelectedTestStatus = (isTestEvent: boolean) => {
+    const eventIds = Array.from(selectedEventIds)
+    if (isTestEvent && !window.confirm(
+      `${eventIds.length} ausgewählte Treffen als Testevents markieren? Sie sind danach nur noch für Testuser sichtbar und zählen nicht zur Aktivität.`,
+    )) return
+    bulkTestMutation.mutate({ eventIds, isTestEvent })
+  }
 
   return (
     <div className="p-8">
@@ -159,7 +202,46 @@ export default function EventsPage() {
           <option value="dismissed_reports">Meldungen ohne Verstoß</option>
           <option value="clean">Ohne Meldungen</option>
         </select>
+        <select
+          value={testEventFilter}
+          onChange={(e) => setFilter(setTestEventFilter, e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+        >
+          <option value="">Alle Eventtypen</option>
+          <option value="true">Nur Testevents</option>
+          <option value="false">Nur reguläre Events</option>
+        </select>
       </div>
+
+      {selectedEventIds.size > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3">
+          <span className="mr-auto text-sm font-medium text-violet-900">{selectedEventIds.size} ausgewählt</span>
+          <button
+            type="button"
+            onClick={() => setSelectedTestStatus(true)}
+            disabled={bulkTestMutation.isPending}
+            className="rounded-lg bg-violet-700 px-3 py-2 text-sm font-medium text-white hover:bg-violet-800 disabled:opacity-50"
+          >
+            Als Testevents markieren
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedTestStatus(false)}
+            disabled={bulkTestMutation.isPending}
+            className="rounded-lg border border-violet-300 bg-white px-3 py-2 text-sm font-medium text-violet-800 hover:bg-violet-100 disabled:opacity-50"
+          >
+            Teststatus entfernen
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedEventIds(new Set())}
+            disabled={bulkTestMutation.isPending}
+            className="px-2 py-2 text-sm text-gray-600 hover:text-gray-900 disabled:opacity-50"
+          >
+            Auswahl aufheben
+          </button>
+        </div>
+      )}
 
       <div className="admin-table admin-mobile-table overflow-x-auto rounded-xl border border-gray-200 bg-white">
         {isLoading ? (
@@ -168,6 +250,15 @@ export default function EventsPage() {
           <table className="w-full min-w-[860px] text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
+                <th className="w-12 px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleVisibleEvents}
+                    aria-label="Alle angezeigten Events auswählen"
+                    className="h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                  />
+                </th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Event</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Host</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Details</th>
@@ -178,6 +269,15 @@ export default function EventsPage() {
             <tbody className="divide-y divide-gray-50">
               {events.map((event) => (
                 <tr key={event.id} className="hover:bg-gray-50 transition-colors">
+                  <td data-label="Auswahl" className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedEventIds.has(event.id)}
+                      onChange={() => toggleEvent(event.id)}
+                      aria-label={`Event ${event.title} auswählen`}
+                      className="h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                    />
+                  </td>
                   <td data-label="Event" className="px-4 py-3">
                     <Link to={`/events/${event.id}`} className="font-medium text-gray-900 hover:text-violet-700">
                       {event.title}
@@ -207,7 +307,8 @@ export default function EventsPage() {
                         {event.safety_badges?.includes('manual_approval') ? 'Freigabe nötig' : 'Direkte Teilnahme'}
                       </Badge>
                       {event.women_only && <Badge className="bg-pink-100 text-pink-600">Women only</Badge>}
-                      {!event.counts_toward_activity && <Badge className="bg-sky-100 text-sky-700">Beta-Test</Badge>}
+                      {event.is_test_event && <Badge className="bg-violet-100 text-violet-700">Testevent · nur Testuser</Badge>}
+                      {!event.counts_toward_activity && <Badge className="bg-sky-100 text-sky-700">Zählt nicht</Badge>}
                       {event.open_report_count > 0 && <Badge className="bg-red-100 text-red-700">{event.open_report_count} neu</Badge>}
                       {event.reviewing_report_count > 0 && <Badge className="bg-amber-100 text-amber-700">{event.reviewing_report_count} in Prüfung</Badge>}
                       {event.report_count > 0 && <Badge className="bg-gray-100 text-gray-700">{event.report_count} Meldungen gesamt</Badge>}

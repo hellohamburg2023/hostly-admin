@@ -214,6 +214,12 @@ export const getEvent = (id: number | string) =>
 export const patchEvent = (id: number, data: Record<string, unknown>) =>
   api.patch(`/api/admin/events/${id}/`, data).then((r) => r.data)
 
+export const bulkSetEventTestStatus = (eventIds: number[], isTestEvent: boolean) =>
+  api.patch('/api/admin/events/bulk-test-status/', {
+    event_ids: eventIds,
+    is_test_event: isTestEvent,
+  }).then((r) => r.data)
+
 export const deleteEvent = (id: number) =>
   api.delete(`/api/admin/events/${id}/`).then((r) => r.data)
 
