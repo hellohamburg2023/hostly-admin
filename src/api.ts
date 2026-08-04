@@ -196,6 +196,24 @@ export const patchUser = (id: number, data: Record<string, unknown>) =>
 export const deleteUser = (id: number) =>
   api.delete(`/api/admin/users/${id}/`).then((r) => r.data)
 
+export async function downloadUserDataExport(id: number) {
+  const response = await api.get(`/api/admin/users/${id}/data-export/`, { responseType: 'blob' })
+  const disposition = String(response.headers['content-disposition'] || '')
+  const filename = disposition.match(/filename="([^"]+)"/)?.[1] || `hostly-datenauskunft-${id}.txt`
+  const url = URL.createObjectURL(response.data)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+  return filename
+}
+
+export const emailUserDataExport = (id: number) =>
+  api.post(`/api/admin/users/${id}/data-export/email/`, {}).then((r) => r.data as { detail: string })
+
 export const getProfiles = (params?: Record<string, string>) =>
   api.get('/api/admin/profiles/', { params }).then((r) => r.data)
 
