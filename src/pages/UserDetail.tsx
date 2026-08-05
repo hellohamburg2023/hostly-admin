@@ -362,7 +362,12 @@ export default function UserDetailPage() {
                 <DetailRow label="Letzte Aktivität" value={`${activityLabel(user.inactive_days)} · ${formatDate(user.last_active_at || user.last_login, true)}`} />
                 <DetailRow label="Registriert" value={formatDate(user.date_joined, true)} />
                 <DetailRow label="E-Mail-Bestätigung" value={user.email_verified_at ? `Bestätigt am ${formatDate(user.email_verified_at, true)}` : 'Ausstehend'} />
-                <DetailRow label="Onboarding" value={formatDate(user.onboarding_completed_at, true)} />
+                <DetailRow
+                  label="Onboarding"
+                  value={user.onboarding_completed_at
+                    ? `Abgeschlossen am ${formatDate(user.onboarding_completed_at, true)}`
+                    : 'Noch nicht abgeschlossen'}
+                />
                 <DetailRow label="Regeln akzeptiert" value={user.accepted_rules_at ? `${formatDate(user.accepted_rules_at, true)} · Version ${user.accepted_rules_version || '-'}` : 'Noch nicht akzeptiert'} />
                 <DetailRow label="Account gelöscht" value={user.deleted_at ? formatDate(user.deleted_at, true) : 'Nein'} />
                 <DetailRow label="Stadt" value={user.profile?.city || user.profile_city} />

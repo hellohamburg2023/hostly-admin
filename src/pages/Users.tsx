@@ -19,6 +19,7 @@ interface User {
   last_active_at: string | null
   inactive_days: number | null
   email_verified_at: string | null
+  onboarding_completed_at: string | null
   suspended_at: string | null
   profile_display_name: string
   profile_city: string
@@ -136,6 +137,7 @@ export default function UsersPage() {
         >
           <option value="">Alle Accountstatus</option>
           <option value="active">Aktiv</option>
+          <option value="onboarding_pending">Onboarding ausstehend</option>
           <option value="email_pending">E-Mail-Bestätigung ausstehend</option>
           <option value="suspended">Gesperrt</option>
           <option value="inactive">Inaktiv</option>

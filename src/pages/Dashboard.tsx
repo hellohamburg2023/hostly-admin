@@ -25,6 +25,7 @@ interface Stats {
   users: {
     total: number
     active: number
+    onboarding_pending: number
     new_this_week: number
     new_this_month: number
     active_1d: number
@@ -335,8 +336,9 @@ export default function Dashboard() {
         </div>
       </Link>
 
-      <div className="grid grid-cols-2 gap-4 mb-8 lg:grid-cols-4 xl:grid-cols-8">
-        <KPI icon={Users} label="Nutzer gesamt" value={data.users.total} sub={`${data.users.active} aktiv · ${data.users.deleted} gelöscht`} color="violet" />
+      <div className="grid grid-cols-2 gap-4 mb-8 lg:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-9">
+        <KPI icon={Users} label="Nutzer gesamt" value={data.users.total} sub={`${data.users.active} vollständig aktiv · ${data.users.deleted} gelöscht`} color="violet" />
+        <KPI icon={CircleDashed} label="Onboarding offen" value={data.users.onboarding_pending ?? 0} sub="E-Mail bestätigt, noch nicht abgeschlossen" color="amber" />
         <KPI icon={Wifi} label="Online jetzt" value={data.users.online_now ?? 0} sub={`Aktivität in den letzten ${data.users.online_window_minutes ?? 5} Min.`} color="green" />
         <KPI icon={Activity} label="Aktiv 7 Tage" value={data.users.active_7d} sub={`${data.users.active_30d} in 30 Tagen`} color="green" />
         <KPI icon={TrendingUp} label="Neu diese Woche" value={data.users.new_this_week} sub={`${data.users.new_this_month} diesen Monat`} color="blue" />

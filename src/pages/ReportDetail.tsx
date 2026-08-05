@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getApiErrorMessage, getReport, reportAction } from '../api'
-import { formatDate } from '../adminFormat'
+import { accountStatus, formatDate } from '../adminFormat'
 import { Badge, DetailRow, ErrorBanner, Section } from '../adminUi'
 import { ArrowLeft, Ban, CheckCircle, Eye, ShieldOff, XCircle } from 'lucide-react'
 import {
@@ -25,7 +25,12 @@ interface CompactUser {
   city: string
   verification_status: string
   is_active: boolean
+  is_staff: boolean
+  is_superuser: boolean
   is_deleted: boolean
+  email_verified_at: string | null
+  onboarding_completed_at: string | null
+  suspended_at: string | null
 }
 
 interface EventSummary {
@@ -85,6 +90,7 @@ function UserCard({ user, title }: { user: CompactUser | null; title: string }) 
       </div>
     )
   }
+  const status = accountStatus(user)
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5">
       <h3 className="mb-3 text-sm font-semibold text-gray-700">{title}</h3>
@@ -102,11 +108,7 @@ function UserCard({ user, title }: { user: CompactUser | null; title: string }) 
         </div>
       </Link>
       <div className="mt-3 flex flex-wrap gap-1">
-        {user.is_deleted ? (
-          <Badge className="bg-gray-200 text-gray-700">Gelöscht</Badge>
-        ) : (
-          <Badge className={user.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}>{user.is_active ? 'Aktiv' : 'Gesperrt'}</Badge>
-        )}
+        <Badge className={status.className}>{status.label}</Badge>
         <Badge className="bg-gray-100 text-gray-600">{VERIFICATION_LABELS[user.verification_status] || 'Nicht verifiziert'}</Badge>
         {user.city && <Badge className="bg-blue-100 text-blue-700">{user.city}</Badge>}
       </div>
