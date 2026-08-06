@@ -133,6 +133,14 @@ interface Health {
         last_archived_wal: string | null
       }
     }
+    rollback_postgres: {
+      configured: boolean
+      ok: boolean | null
+      latency_ms: number | null
+      version: string | null
+      database_size_bytes: number | null
+      detail: string
+    }
     redis: {
       ok: boolean
       latency_ms: number | null
@@ -238,7 +246,8 @@ const SERVICE_ICONS: Record<string, LucideIcon> = {
   frontend: Cloud,
   backend: Server,
   worker: Zap,
-  postgres: Database,
+  postgis: Database,
+  'postgres-rollback': HardDrive,
   redis: Radio,
 }
 
@@ -388,7 +397,7 @@ export default function HealthPage() {
   const integrationChecks = Object.entries(health?.checks ?? {}).filter(
     ([key]) => !['database', 'redis', 'website', 'admin_alerting'].includes(key),
   )
-  const postgresVolume = infrastructure?.volumes.find((volume) => volume.service === 'Postgres')
+  const postgisVolume = infrastructure?.volumes.find((volume) => volume.service === 'PostGIS')
   const redisVolume = infrastructure?.volumes.find((volume) => volume.service === 'Redis')
   const directServices: RailwayService[] = health ? [
     {
@@ -453,10 +462,10 @@ export default function HealthPage() {
       source: 'Vier aktuelle Worker-Heartbeats',
     },
     {
-      key: 'postgres',
-      name: 'Postgres',
-      label: 'PostgreSQL',
-      role: 'Speichert alle dauerhaften Anwendungs- und Nutzerdaten.',
+      key: 'postgis',
+      name: 'PostGIS',
+      label: 'PostGIS',
+      role: 'Speichert Anwendungs-, Nutzer- und räumlich indexierte Eventdaten.',
       ok: infrastructure?.postgres.ok ?? health.checks.database?.ok ?? false,
       status: 'DIRECT',
       running_replicas: 0,
@@ -466,6 +475,20 @@ export default function HealthPage() {
       regions: [],
       source: 'Direkte Datenbankabfrage',
     },
+    ...(infrastructure?.rollback_postgres.configured ? [{
+      key: 'postgres-rollback',
+      name: 'Postgres',
+      label: 'PostgreSQL (Rollback)',
+      role: 'Bleibt während der PostGIS-Übergangsphase als Rückfalloption erhalten.',
+      ok: infrastructure.rollback_postgres.ok ?? false,
+      status: 'DIRECT',
+      running_replicas: 0,
+      desired_replicas: 0,
+      deployment_id: null,
+      deployed_at: null,
+      regions: [],
+      source: 'Read-only-Datenbankabfrage',
+    }] : []),
     {
       key: 'redis',
       name: 'Redis',
@@ -569,18 +592,18 @@ export default function HealthPage() {
               title="Railway-Services"
               description={infrastructure?.services.length
                 ? 'Von Railway bestätigte Deployments und tatsächlich laufende Replica-Anzahl.'
-                : 'Direkte Betriebsprüfungen halten den Status verlässlich sichtbar, während Railway-Metadaten neu geladen werden.'}
+                : 'Direkte Verbindungs- und Heartbeat-Prüfungen der produktiven Kernsysteme.'}
             />
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {services.map((service) => <ServiceCard key={service.key} service={service} />)}
             </div>
-            {(!infrastructure?.services.length || infrastructure.stale) && (
+            {(infrastructure?.stale || (infrastructure?.configured && !infrastructure.services.length)) && (
               <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
                 <CircleDashed size={14} className="shrink-0" />
                 <span>
                   {infrastructure?.stale
                     ? `Railway-Metadaten werden aktualisiert; angezeigt wird die letzte erfolgreiche Prüfung vom ${formatDate(infrastructure.fetched_at)}.`
-                    : 'Railway-Metadaten werden neu geladen. Die grünen Zustände stammen bis dahin aus direkten Verbindungs- und Heartbeat-Prüfungen.'}
+                    : 'Railway-Metadaten sind vorübergehend nicht erreichbar; die direkten Prüfungen bleiben maßgeblich.'}
                 </span>
               </div>
             )}
@@ -589,7 +612,9 @@ export default function HealthPage() {
           <section className="mb-7">
             <SectionTitle
               title="Datenbanken und Wiederherstellung"
-              description="Direkte Live-Prüfungen von PostgreSQL, Redis, PITR, Volumes und Railway-Backups."
+              description={infrastructure?.volumes.length || backups
+                ? 'Direkte Live-Prüfungen von PostGIS, Redis und PITR sowie verfügbare Railway-Speichermetadaten.'
+                : 'Direkte Live-Prüfungen von PostGIS, Redis und Point-in-time Recovery.'}
             />
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <div className="rounded-xl border border-gray-200 bg-white p-5">
@@ -597,8 +622,8 @@ export default function HealthPage() {
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="shrink-0 rounded-lg bg-blue-50 p-2 text-blue-600"><Database size={18} /></span>
                     <div className="min-w-0">
-                      <h4 className="text-sm font-semibold text-gray-900">PostgreSQL</h4>
-                      <p className="mt-0.5 text-xs text-gray-500">Dauerhafte Hauptdatenbank</p>
+                      <h4 className="text-sm font-semibold text-gray-900">PostGIS</h4>
+                      <p className="mt-0.5 text-xs text-gray-500">Dauerhafte Hauptdatenbank mit räumlichem Index</p>
                     </div>
                   </div>
                   <StatusBadge ok={infrastructure?.postgres.ok ?? health.checks.database?.ok ?? false} />
@@ -607,7 +632,7 @@ export default function HealthPage() {
                   <div><dt className="text-gray-400">Antwortzeit</dt><dd className="mt-1 font-semibold text-gray-800">{infrastructure?.postgres.latency_ms ?? '–'} ms</dd></div>
                   <div><dt className="text-gray-400">Version</dt><dd className="mt-1 font-semibold text-gray-800">{infrastructure?.postgres.version ?? '–'}</dd></div>
                   <div><dt className="text-gray-400">Datenbankgröße</dt><dd className="mt-1 font-semibold text-gray-800">{formatBytes(infrastructure?.postgres.database_size_bytes)}</dd></div>
-                  <div><dt className="text-gray-400">Volume</dt><dd className="mt-1 font-semibold text-gray-800">{postgresVolume ? `${postgresVolume.used_percent}% belegt` : '–'}</dd></div>
+                  {postgisVolume && <div><dt className="text-gray-400">Volume</dt><dd className="mt-1 font-semibold text-gray-800">{postgisVolume.used_percent}% belegt</dd></div>}
                 </dl>
               </div>
 
@@ -628,7 +653,7 @@ export default function HealthPage() {
                   <div><dt className="text-gray-400">Arbeitsspeicher</dt><dd className="mt-1 font-semibold text-gray-800">{formatBytes(infrastructure?.redis.used_memory_bytes)}</dd></div>
                   <div><dt className="text-gray-400">Clients / blockiert</dt><dd className="mt-1 font-semibold text-gray-800">{infrastructure?.redis.connected_clients ?? '–'} / {infrastructure?.redis.blocked_clients ?? '–'}</dd></div>
                   <div><dt className="text-gray-400">Evictions</dt><dd className="mt-1 font-semibold text-gray-800">{infrastructure?.redis.evicted_keys ?? '–'}</dd></div>
-                  <div><dt className="text-gray-400">Volume</dt><dd className="mt-1 font-semibold text-gray-800">{redisVolume ? `${redisVolume.used_percent}% belegt` : '–'}</dd></div>
+                  {redisVolume && <div><dt className="text-gray-400">Volume</dt><dd className="mt-1 font-semibold text-gray-800">{redisVolume.used_percent}% belegt</dd></div>}
                 </dl>
               </div>
 
@@ -651,7 +676,7 @@ export default function HealthPage() {
                 </dl>
               </div>
 
-              <div className="rounded-xl border border-gray-200 bg-white p-5">
+              {backups && <div className="rounded-xl border border-gray-200 bg-white p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="shrink-0 rounded-lg bg-amber-50 p-2 text-amber-600"><HardDrive size={18} /></span>
@@ -674,7 +699,7 @@ export default function HealthPage() {
                   <div><dt className="text-gray-400">Erstellt</dt><dd className="mt-1 font-semibold text-gray-800">{backups ? formatDate(backups.latest?.createdAt) : '–'}</dd></div>
                   <div className="flex justify-between gap-3"><dt className="text-gray-400">Verfügbare Backups</dt><dd className="font-semibold text-gray-800">{backups?.count ?? '–'}</dd></div>
                 </dl>
-              </div>
+              </div>}
             </div>
           </section>
 
