@@ -21,7 +21,12 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react'
-import { getApiErrorMessage, getHealth, getSentryMonitoring } from '../api'
+import {
+  getApiErrorMessage,
+  getHealth,
+  getSentryMonitoring,
+  HEALTH_REFETCH_INTERVAL_MS,
+} from '../api'
 import { Badge, ErrorBanner } from '../adminUi'
 
 interface Check {
@@ -358,7 +363,7 @@ export default function HealthPage() {
   const { data: health, isLoading, error, refetch: refetchHealth, isFetching } = useQuery<Health>({
     queryKey: ['health'],
     queryFn: getHealth,
-    refetchInterval: 30_000,
+    refetchInterval: HEALTH_REFETCH_INTERVAL_MS,
   })
   const {
     data: sentry,

@@ -316,6 +316,8 @@ export const getAnalytics = () => api.get('/api/admin/analytics/').then((r) => r
 export const getProductAnalytics = (days: number) =>
   api.get('/api/admin/product-analytics/', { params: { days } }).then((r) => r.data)
 
+export const HEALTH_REFETCH_INTERVAL_MS = 60_000
+
 export const getHealth = () => api.get('/api/admin/health/').then((r) => r.data)
 
 export const getSentryMonitoring = (days: number) =>

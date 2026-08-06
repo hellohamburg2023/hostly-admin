@@ -1,7 +1,13 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { getApiErrorMessage, getHealth, getSafeWalks, pageResults } from '../api'
+import {
+  getApiErrorMessage,
+  getHealth,
+  getSafeWalks,
+  HEALTH_REFETCH_INTERVAL_MS,
+  pageResults,
+} from '../api'
 import { formatDate } from '../adminFormat'
 import { Badge, EmptyState, ErrorBanner, Pagination } from '../adminUi'
 import {
@@ -65,7 +71,7 @@ export default function SafeWalksPage() {
   const { data: health } = useQuery<Health>({
     queryKey: ['health', 'safe-walk-worker'],
     queryFn: getHealth,
-    refetchInterval: 30_000,
+    refetchInterval: HEALTH_REFETCH_INTERVAL_MS,
   })
   const walks = pageResults<SafeWalkSession>(data)
   const page = data && !Array.isArray(data) ? data : undefined

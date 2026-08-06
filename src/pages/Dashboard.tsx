@@ -1,7 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { getAnalytics, getApiErrorMessage, getHealth, getProductAnalytics, getStats } from '../api'
+import {
+  getAnalytics,
+  getApiErrorMessage,
+  getHealth,
+  getProductAnalytics,
+  getStats,
+  HEALTH_REFETCH_INTERVAL_MS,
+} from '../api'
 import { ErrorBanner } from '../adminUi'
 import {
   Area, AreaChart, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
@@ -213,7 +220,7 @@ export default function Dashboard() {
   } = useQuery<DashboardHealth>({
     queryKey: ['health'],
     queryFn: getHealth,
-    refetchInterval: 30_000,
+    refetchInterval: HEALTH_REFETCH_INTERVAL_MS,
   })
 
   if (isLoading) return <div className="p-8 text-gray-400">Lade Statistiken...</div>
