@@ -404,8 +404,10 @@ export default function EventsPage() {
                       </Link>
                       {event.status !== 'cancelled' && event.status !== 'completed' && (
                         <button
+                          type="button"
                           onClick={() => mutation.mutate({ id: event.id, status: 'cancelled' })}
-                          className="text-xs text-red-600 hover:text-red-800 border border-red-200 hover:border-red-400 px-2 py-1 rounded-lg transition-colors"
+                          disabled={mutation.isPending}
+                          className="inline-flex h-8 shrink-0 items-center justify-center self-center whitespace-nowrap rounded-lg border border-red-200 px-2.5 text-xs font-medium leading-none text-red-600 transition-colors hover:border-red-400 hover:text-red-800 disabled:opacity-50"
                         >
                           Absagen
                         </button>

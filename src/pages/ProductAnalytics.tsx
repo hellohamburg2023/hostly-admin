@@ -185,9 +185,9 @@ export default function ProductAnalyticsPage() {
       ) : data?.configured ? (
         <>
           <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <KPI icon={Users} label="Aktive Analytics-Geräte" value={data.summary?.active_users ?? 0} sub={`letzte ${data.days} Tage · keine Accounts`} />
-            <KPI icon={Activity} label="Sitzungen" value={data.summary?.sessions ?? 0} sub="Firebase Sessions" />
-            <KPI icon={Activity} label="Engagierte Sitzungen" value={data.summary?.engaged_sessions ?? 0} sub={`${data.summary?.engagement_rate ?? 0}% der Sitzungen`} />
+            <KPI icon={Users} label="Interagierende Analytics-Geräte" value={data.summary?.active_users ?? 0} sub={`mindestens eine Hostly-Aktion · letzte ${data.days} Tage`} />
+            <KPI icon={Activity} label="Sitzungen mit Interaktion" value={data.summary?.sessions ?? 0} sub="App-Öffnungen allein zählen nicht" />
+            <KPI icon={Activity} label="Engagierte Sitzungen" value={data.summary?.engaged_sessions ?? 0} sub={`${data.summary?.engagement_rate ?? 0}% der Interaktionssitzungen`} />
             <KPI icon={Clock3} label="Ø Sitzungsdauer" value={durationLabel(data.summary?.average_session_seconds)} sub={`${data.summary?.sessions_per_user ?? 0} Sitzungen je Analytics-Gerät`} />
           </div>
 
@@ -222,7 +222,7 @@ export default function ProductAnalyticsPage() {
                     <div>
                       <p className="text-sm font-semibold text-gray-900">{platformName}</p>
                       <p className="mt-1 text-2xl font-bold text-gray-900">{platform?.active_users ?? 0}</p>
-                      <p className="text-xs text-gray-400">aktive Analytics-Geräte · {platform?.sessions ?? 0} Sitzungen</p>
+                      <p className="text-xs text-gray-400">interagierende Analytics-Geräte · {platform?.sessions ?? 0} Sitzungen mit Interaktion</p>
                     </div>
                     <div className="rounded-lg bg-violet-50 p-2 text-violet-600"><Users size={18} /></div>
                   </div>
