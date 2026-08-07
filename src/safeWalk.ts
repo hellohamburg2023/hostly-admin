@@ -59,6 +59,10 @@ export interface SafeWalkSession {
 }
 
 export interface SafeWalkDetail extends SafeWalkSession {
+  latest_battery_level: number | null
+  latest_battery_source: string
+  latest_battery_recorded_at: string | null
+  latest_battery_precision: '' | 'reported' | 'rounded_5_percent'
   contacts: { id: number; user: CompactAdminUser; notified_at: string | null; created_at: string }[]
   invites: {
     id: number

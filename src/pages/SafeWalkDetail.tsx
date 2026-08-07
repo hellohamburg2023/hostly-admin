@@ -123,6 +123,14 @@ export default function SafeWalkDetailPage() {
               <dl className="grid grid-cols-2 gap-4">
                 <DetailRow label="Routenpunkte" value={session.location_point_count} />
                 <DetailRow label="Genauigkeit" value={session.last_known_accuracy == null ? '-' : `± ${Math.round(session.last_known_accuracy)} m`} />
+                {session.latest_battery_level != null && (
+                  <DetailRow
+                    label="Akku beim letzten Signal"
+                    value={session.latest_battery_precision === 'rounded_5_percent'
+                      ? `ca. ${Math.round(session.latest_battery_level * 100)} % · iOS, auf den nächsten 5-%-Schritt auf- oder abgerundet · ${formatDate(session.latest_battery_recorded_at, true)}`
+                      : `${Math.round(session.latest_battery_level * 100)} % · ${session.latest_battery_source || 'Mobilgerät'} · ${formatDate(session.latest_battery_recorded_at, true)}`}
+                  />
+                )}
                 <DetailRow label="Live Activity Owner" value={session.owner_activity_token_updated_at ? `Aktiv · ${formatDate(session.owner_activity_token_updated_at, true)}` : 'Nicht registriert'} />
                 <DetailRow label="Zugriffe" value={session.access_count} />
               </dl>
