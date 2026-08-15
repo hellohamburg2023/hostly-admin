@@ -99,6 +99,7 @@ const STATUS_COLORS: Record<string, string> = {
   draft: '#94a3b8',
   cancelled: '#dc2626',
   completed: '#7c3aed',
+  deleted: '#334155',
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -107,9 +108,10 @@ const STATUS_LABELS: Record<string, string> = {
   draft: 'Entwurf',
   cancelled: 'Abgesagt',
   completed: 'Abgeschlossen',
+  deleted: 'Gelöscht',
 }
 
-const STATUS_ORDER = ['open', 'full', 'draft', 'completed', 'cancelled']
+const STATUS_ORDER = ['open', 'full', 'draft', 'completed', 'cancelled', 'deleted']
 const AXIS_COLOR = '#94a3b8'
 const GRID_COLOR = '#e2e8f0'
 const TOOLTIP_STYLE = {

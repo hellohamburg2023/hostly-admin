@@ -30,6 +30,8 @@ interface Event {
   host_username: string
   host_name: string
   category_name: string
+  deleted_at: string | null
+  is_deleted: boolean
   created_at: string
 }
 
@@ -57,6 +59,7 @@ const STATUS_STYLES: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-600',
   cancelled: 'bg-red-100 text-red-600',
   completed: 'bg-purple-100 text-purple-700',
+  deleted: 'bg-slate-900 text-white',
 }
 
 const STATUS_DE: Record<string, string> = {
@@ -65,6 +68,7 @@ const STATUS_DE: Record<string, string> = {
   draft: 'Entwurf',
   cancelled: 'Abgesagt',
   completed: 'Beendet',
+  deleted: 'Gelöscht',
 }
 
 export default function EventsPage() {
@@ -160,7 +164,7 @@ export default function EventsPage() {
             ? getApiErrorMessage(bulkDeleteMutation.error)
             : ''
 
-  const visibleEventIds = events.map((event) => event.id)
+  const visibleEventIds = events.filter((event) => !event.is_deleted).map((event) => event.id)
   const allVisibleSelected = visibleEventIds.length > 0 && visibleEventIds.every((eventId) => selectedEventIds.has(eventId))
   const toggleEvent = (eventId: number) => {
     setSelectedEventIds((current) => {
@@ -352,8 +356,8 @@ export default function EventsPage() {
                       type="checkbox"
                       checked={selectedEventIds.has(event.id)}
                       onChange={() => toggleEvent(event.id)}
-                      disabled={bulkActionPending}
-                      aria-label={`Event ${event.title} auswählen`}
+                      disabled={bulkActionPending || event.is_deleted}
+                      aria-label={event.is_deleted ? `Gelöschtes Event ${event.title} ist in Aufbewahrung` : `Event ${event.title} auswählen`}
                       className="h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500 disabled:opacity-50"
                     />
                   </td>
@@ -362,6 +366,9 @@ export default function EventsPage() {
                       {event.title}
                     </Link>
                     <p className="text-xs text-gray-400">{event.category_name || 'Keine Kategorie'} · erstellt {formatDate(event.created_at)}</p>
+                    {event.deleted_at && (
+                      <p className="mt-0.5 text-xs font-medium text-red-600">Gelöscht am {formatDate(event.deleted_at, true)} · Aufbewahrung 60 Tage</p>
+                    )}
                   </td>
                   <td data-label="Host" className="px-4 py-3">
                     <Link to={`/users/${event.host_id}`} className="text-gray-700 hover:text-violet-700">
@@ -402,7 +409,7 @@ export default function EventsPage() {
                       >
                         <Eye size={14} />
                       </Link>
-                      {event.status !== 'cancelled' && event.status !== 'completed' && (
+                      {event.status !== 'cancelled' && event.status !== 'completed' && event.status !== 'deleted' && (
                         <button
                           type="button"
                           onClick={() => mutation.mutate({ id: event.id, status: 'cancelled' })}
@@ -412,7 +419,7 @@ export default function EventsPage() {
                           Absagen
                         </button>
                       )}
-                      <button
+                      {!event.is_deleted ? <button
                         type="button"
                         onClick={() => {
                           const confirmation = prompt(`Event „${event.title}“ endgültig löschen? Alle zugehörigen Daten werden entfernt.\n\nTippe LÖSCHEN zur Bestätigung.`)
@@ -423,7 +430,9 @@ export default function EventsPage() {
                         className="rounded-lg p-1.5 text-red-500 transition-colors hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
                       >
                         <Trash2 size={14} />
-                      </button>
+                      </button> : (
+                        <span className="text-xs font-medium text-slate-500">60 Tage Aufbewahrung</span>
+                      )}
                     </div>
                   </td>
                 </tr>

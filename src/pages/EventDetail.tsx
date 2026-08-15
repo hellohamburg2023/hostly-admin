@@ -71,6 +71,8 @@ interface EventDetail {
   category_name: string
   created_at: string
   updated_at: string
+  deleted_at: string | null
+  is_deleted: boolean
   host: CompactUser
   participants: { id: number; user: CompactUser; created_at: string; accepted_by_email: string }[]
   requests: { id: number; user: CompactUser; message: string; status: string; created_at: string }[]
@@ -101,12 +103,22 @@ const STATUS_STYLES: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-600',
   cancelled: 'bg-red-100 text-red-600',
   completed: 'bg-purple-100 text-purple-700',
+  deleted: 'bg-slate-900 text-white',
   pending: 'bg-amber-100 text-amber-700',
   accepted: 'bg-green-100 text-green-700',
   declined: 'bg-red-100 text-red-600',
   active: 'bg-green-100 text-green-700',
   escalated: 'bg-red-100 text-red-700',
   arrived: 'bg-blue-100 text-blue-700',
+}
+
+const EVENT_STATUS_LABELS: Record<string, string> = {
+  open: 'Offen',
+  full: 'Voll',
+  draft: 'Entwurf',
+  cancelled: 'Abgesagt',
+  completed: 'Beendet',
+  deleted: 'Gelöscht',
 }
 
 function participationMode(event: Pick<EventDetail, 'safety_badges'>) {
@@ -208,7 +220,8 @@ export default function EventDetailPage() {
         <div className="admin-detail-header flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="mb-2 flex flex-wrap gap-2">
-              <Badge className={STATUS_STYLES[event.status] || STATUS_STYLES.draft}>{event.status}</Badge>
+              <Badge className={STATUS_STYLES[event.status] || STATUS_STYLES.draft}>{EVENT_STATUS_LABELS[event.status] || event.status}</Badge>
+              {event.deleted_at && <Badge className="bg-red-100 text-red-700">Gelöscht am {formatDate(event.deleted_at, true)}</Badge>}
               {event.women_only && <Badge className="bg-pink-100 text-pink-700">Women only</Badge>}
               <Badge className={event.safety_badges?.includes('manual_approval') ? 'bg-amber-100 text-amber-700' : 'bg-teal-100 text-teal-700'}>
                 {event.safety_badges?.includes('manual_approval') ? 'Freigabe nötig' : 'Direkte Teilnahme'}
@@ -221,7 +234,7 @@ export default function EventDetailPage() {
             <p className="mt-1 max-w-3xl text-sm text-gray-600">{event.description}</p>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
-            {event.status !== 'cancelled' && event.status !== 'completed' && (
+            {event.status !== 'cancelled' && event.status !== 'completed' && event.status !== 'deleted' && (
               <button
                 onClick={() => mutation.mutate({ status: 'cancelled' })}
                 className="inline-flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
@@ -229,7 +242,7 @@ export default function EventDetailPage() {
                 <Ban size={15} /> Event absagen
               </button>
             )}
-            <button
+            {event.status !== 'deleted' && <button
               type="button"
               onClick={() => {
                 if (!event.is_test_event && !window.confirm(
@@ -241,8 +254,8 @@ export default function EventDetailPage() {
               className="inline-flex items-center gap-2 rounded-lg bg-violet-50 px-3 py-2 text-sm font-medium text-violet-700 hover:bg-violet-100 disabled:opacity-50"
             >
               {event.is_test_event ? 'Teststatus entfernen' : 'Als Testevent markieren'}
-            </button>
-            <button
+            </button>}
+            {event.status !== 'deleted' && <button
               type="button"
               onClick={() => mutation.mutate({ counts_toward_activity: !event.counts_toward_activity })}
               disabled={mutation.isPending || event.is_test_event}
@@ -250,8 +263,8 @@ export default function EventDetailPage() {
               className="inline-flex items-center gap-2 rounded-lg bg-sky-50 px-3 py-2 text-sm font-medium text-sky-700 hover:bg-sky-100 disabled:opacity-50"
             >
               {event.counts_toward_activity ? 'Von Aktivitätszählung ausschließen' : 'Zur Aktivität zählen'}
-            </button>
-            <button
+            </button>}
+            {!event.is_deleted ? <button
               type="button"
               onClick={() => {
                 const confirmation = prompt(`Event „${event.title}“ endgültig löschen? Alle zugehörigen Daten werden entfernt.\n\nTippe LÖSCHEN zur Bestätigung.`)
@@ -261,7 +274,11 @@ export default function EventDetailPage() {
               className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
             >
               <Trash2 size={15} /> Endgültig löschen
-            </button>
+            </button> : (
+              <span className="inline-flex items-center rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700">
+                Compliance-Aufbewahrung: 60 Tage
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -282,8 +299,9 @@ export default function EventDetailPage() {
                 <DetailRow label="Ende" value={formatDate(event.ends_at, true)} />
                 <DetailRow label="Teilnehmer" value={`${event.participant_count}/${event.participant_limit} · min. ${event.min_participants}`} />
                 <DetailRow label="Teilnahme" value={participationMode(event)} />
-                <DetailRow label="Sichtbarkeit" value={event.is_test_event ? 'Nur für Testuser sichtbar' : 'Regulär sichtbar'} />
-                <DetailRow label="Aktivitätszählung" value={event.counts_toward_activity ? 'Zählt für Host und Teilnehmende' : 'Zählt nicht für Host und Teilnehmende'} />
+                <DetailRow label="Sichtbarkeit" value={event.is_deleted ? 'Für alle App-Nutzer ausgeblendet' : event.is_test_event ? 'Nur für Testuser sichtbar' : 'Regulär sichtbar'} />
+                <DetailRow label="Löschstatus" value={event.deleted_at ? `Vom Host gelöscht am ${formatDate(event.deleted_at, true)} · automatische endgültige Löschung nach 60 Tagen` : 'Nicht gelöscht'} />
+                <DetailRow label="Aktivitätszählung" value={event.is_deleted ? 'Wird nicht mehr gezählt' : event.counts_toward_activity ? 'Zählt für Host und Teilnehmende' : 'Zählt nicht für Host und Teilnehmende'} />
                 <DetailRow label="Weitere Sicherheitsbadges" value={safetyBadgeLabels(event)} />
                 <DetailRow label="Altersbereich" value={event.age_restriction_enabled ? `${event.min_age ?? '?'} bis ${event.max_age ?? '?'} Jahre` : 'Keine Altersbeschränkung'} />
                 <DetailRow label="Interessen" value={event.interests?.join(', ')} />
