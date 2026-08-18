@@ -270,11 +270,17 @@ export const getSafeWalk = (id: number | string) =>
 export const getAuditLogs = (params?: Record<string, string>) =>
   api.get('/api/admin/audit-logs/', { params }).then((r) => r.data)
 
-export interface AdminPushNotificationPayload {
+export type AdminNotificationChannel = 'push' | 'email'
+
+export interface AdminNotificationTargetPayload {
   target_type: 'users' | 'all' | 'active_30d' | 'city' | 'category'
   user_ids?: number[]
   city?: string
   category_id?: number
+}
+
+export interface AdminPushNotificationPayload extends AdminNotificationTargetPayload {
+  channels: AdminNotificationChannel[]
   title_de: string
   body_de: string
   title_en?: string
@@ -282,12 +288,20 @@ export interface AdminPushNotificationPayload {
 }
 
 export interface AdminPushNotificationResult {
+  channels: AdminNotificationChannel[]
   recipient_count: number
+  push_recipient_count: number
+  email_recipient_count: number
   device_count: number
   language_counts: { de: number; en: number }
+  push_language_counts: { de: number; en: number }
+  email_language_counts: { de: number; en: number }
   sent_device_count?: number
   rejected_device_count?: number
+  sent_email_count?: number
+  rejected_email_count?: number
   devices: AdminPushNotificationDeviceResult[]
+  email_recipients: AdminEmailNotificationRecipientResult[]
 }
 
 export interface AdminPushNotificationDeviceResult {
@@ -296,7 +310,7 @@ export interface AdminPushNotificationDeviceResult {
   user_email: string
   user_display_name: string
   platform: string
-  provider: 'apns' | 'expo'
+  provider: 'apns' | 'fcm' | 'expo'
   preferred_language: 'de' | 'en'
   token_suffix: string
   updated_at: string
@@ -305,11 +319,41 @@ export interface AdminPushNotificationDeviceResult {
   rejection_reason: string
 }
 
+export interface AdminEmailNotificationRecipientResult {
+  user_id: number
+  user_email: string
+  user_display_name: string
+  city: string
+  preferred_language: 'de' | 'en'
+  delivery_status: 'ready' | 'accepted' | 'rejected'
+  rejection_reason: string
+}
+
 export const previewPushNotification = (data: AdminPushNotificationPayload) =>
   api.post<AdminPushNotificationResult>('/api/admin/push-notifications/preview/', data).then((r) => r.data)
 
 export const sendPushNotification = (data: AdminPushNotificationPayload) =>
-  api.post<AdminPushNotificationResult>('/api/admin/push-notifications/send/', data).then((r) => r.data)
+  api.post<AdminPushNotificationResult>('/api/admin/push-notifications/send/', data, { timeout: 120_000 }).then((r) => r.data)
+
+export async function downloadAdminEmailRecipients(data: AdminNotificationTargetPayload) {
+  const response = await api.post(
+    '/api/admin/push-notifications/email-recipients-export/',
+    data,
+    { responseType: 'blob', timeout: 30_000 },
+  )
+  const disposition = String(response.headers['content-disposition'] || '')
+  const filename = disposition.match(/filename="([^"]+)"/)?.[1] || 'hostly-email-empfaenger.csv'
+  const recipientCount = Number(response.headers['x-hostly-recipient-count'] || 0)
+  const url = URL.createObjectURL(response.data)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+  return { filename, recipientCount }
+}
 
 export const getAnalytics = () => api.get('/api/admin/analytics/').then((r) => r.data)
 

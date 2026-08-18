@@ -310,7 +310,7 @@ export default function UserDetailPage() {
                 to={`/push-notifications?user=${user.id}`}
                 className="inline-flex items-center gap-2 rounded-lg bg-violet-50 px-3 py-2 text-sm font-medium text-violet-700 hover:bg-violet-100"
               >
-                <BellRing size={15} /> Push senden
+                <BellRing size={15} /> Hostly-Info senden
               </Link>
             )}
             <button

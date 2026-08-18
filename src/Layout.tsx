@@ -16,7 +16,7 @@ const nav = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/users', label: 'Nutzer', icon: Users },
   { to: '/regions', label: 'Regionen & City-Start', icon: MapPinned },
-  { to: '/push-notifications', label: 'Push-Nachrichten', icon: BellRing },
+  { to: '/push-notifications', label: 'Hostly-Infos', icon: BellRing },
   { to: '/verification', label: 'Verifizierung', icon: ShieldCheck },
   { to: '/events', label: 'Events', icon: CalendarDays },
   { to: '/reports', label: 'Meldungen', icon: AlertTriangle },

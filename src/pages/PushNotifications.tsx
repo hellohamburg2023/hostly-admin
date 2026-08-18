@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { BellRing, Check, Search, Send, UserPlus, X } from 'lucide-react'
+import { BellRing, Check, Download, Mail, Search, Send, UserPlus, X } from 'lucide-react'
 import {
+  downloadAdminEmailRecipients,
   getApiErrorMessage,
   getCategories,
   getUser,
@@ -10,6 +11,9 @@ import {
   pageResults,
   previewPushNotification,
   sendPushNotification,
+  type AdminEmailNotificationRecipientResult,
+  type AdminNotificationChannel,
+  type AdminNotificationTargetPayload,
   type AdminPushNotificationDeviceResult,
   type AdminPushNotificationPayload,
   type AdminPushNotificationResult,
@@ -37,10 +41,10 @@ type CopyField = 'title_de' | 'body_de' | 'title_en' | 'body_en'
 
 const TARGETS: { value: TargetType; label: string; description: string }[] = [
   { value: 'users', label: 'Einzelne Nutzer', description: 'Bis zu 100 gezielt ausgewählte Konten.' },
-  { value: 'all', label: 'Alle aktiven Konten', description: 'Alle nicht gesperrten Konten, die Hostly-Team-Nachrichten erlaubt haben und per Push erreichbar sind.' },
+  { value: 'all', label: 'Alle aktiven Konten', description: 'Alle nicht gesperrten Konten, die über mindestens einen gewählten Kanal erreichbar sind.' },
   { value: 'active_30d', label: 'Letzte 30 Tage aktiv', description: 'Nutzer, die in den letzten 30 Tagen in der App aktiv waren.' },
   { value: 'city', label: 'Stadt', description: 'Alle erreichbaren Nutzer mit derselben Profilstadt.' },
-  { value: 'category', label: 'Kategorie-Abonnenten', description: 'Nutzer, die Pushs zu einer Kategorie abonniert haben.' },
+  { value: 'category', label: 'Kategorie-Abonnenten', description: 'Nutzer, die der ausgewählten Kategorie folgen.' },
 ]
 
 const inputClass = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200'
@@ -53,6 +57,7 @@ export default function PushNotificationsPage() {
   const [userSearch, setUserSearch] = useState('')
   const [city, setCity] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [channels, setChannels] = useState<AdminNotificationChannel[]>(['push'])
   const [copy, setCopy] = useState({ title_de: '', body_de: '', title_en: '', body_en: '' })
   const [preview, setPreview] = useState<AdminPushNotificationResult | null>(null)
   const [sentResult, setSentResult] = useState<AdminPushNotificationResult | null>(null)
@@ -98,12 +103,16 @@ export default function PushNotificationsPage() {
       setPreview(null)
     },
   })
+  const exportMutation = useMutation({
+    mutationFn: downloadAdminEmailRecipients,
+  })
 
   const resetOutcome = () => {
     setPreview(null)
     setSentResult(null)
     previewMutation.reset()
     sendMutation.reset()
+    exportMutation.reset()
   }
 
   const changeTarget = (value: TargetType) => {
@@ -127,11 +136,29 @@ export default function PushNotificationsPage() {
     resetOutcome()
   }
 
-  const buildPayload = (): AdminPushNotificationPayload => ({
+  const toggleChannel = (channel: AdminNotificationChannel) => {
+    setChannels((current) => {
+      if (current.includes(channel)) {
+        if (current.length === 1) return current
+        return current.filter((item) => item !== channel)
+      }
+      return ['push', 'email'].filter((item): item is AdminNotificationChannel => (
+        item === channel || current.includes(item as AdminNotificationChannel)
+      ))
+    })
+    resetOutcome()
+  }
+
+  const buildTargetPayload = (): AdminNotificationTargetPayload => ({
     target_type: targetType,
     ...(targetType === 'users' ? { user_ids: selectedUsers.map((user) => user.id) } : {}),
     ...(targetType === 'city' ? { city: city.trim() } : {}),
     ...(targetType === 'category' ? { category_id: Number(categoryId) } : {}),
+  })
+
+  const buildPayload = (): AdminPushNotificationPayload => ({
+    ...buildTargetPayload(),
+    channels,
     ...copy,
   })
 
@@ -150,8 +177,12 @@ export default function PushNotificationsPage() {
 
   const sendNow = () => {
     if (!preview) return
+    const channelSummary = [
+      channels.includes('push') ? `${preview.push_recipient_count} Push-Empfänger auf ${preview.device_count} Geräten` : '',
+      channels.includes('email') ? `${preview.email_recipient_count} E-Mail-Empfänger` : '',
+    ].filter(Boolean).join(' und ')
     const confirmed = window.confirm(
-      `Push-Nachricht jetzt an ${preview.recipient_count} Nutzer auf ${preview.device_count} Geräten senden?`,
+      `Hostly-Info jetzt an ${preview.recipient_count} eindeutige Nutzer senden (${channelSummary})?`,
     )
     if (confirmed) sendMutation.mutate(buildPayload())
   }
@@ -160,31 +191,39 @@ export default function PushNotificationsPage() {
     ? getApiErrorMessage(previewMutation.error)
     : sendMutation.error
       ? getApiErrorMessage(sendMutation.error)
-      : targetType === 'category' && categoryError
-        ? getApiErrorMessage(categoryError)
-        : ''
+      : exportMutation.error
+        ? getApiErrorMessage(exportMutation.error)
+        : targetType === 'category' && categoryError
+          ? getApiErrorMessage(categoryError)
+          : ''
   const rejectedDeviceCount = sentResult
     ? sentResult.rejected_device_count
       ?? sentResult.devices.filter((device) => device.delivery_status === 'rejected').length
+    : 0
+  const rejectedEmailCount = sentResult
+    ? sentResult.rejected_email_count
+      ?? sentResult.email_recipients.filter((recipient) => recipient.delivery_status === 'rejected').length
     : 0
 
   return (
     <div className="p-8">
       <div className="admin-page-header mb-6 flex items-start justify-between gap-4">
         <div>
-          <h2 className="flex items-center gap-2 text-xl font-bold text-gray-900"><BellRing size={21} /> Push-Nachrichten</h2>
-          <p className="mt-1 text-sm text-gray-500">Deutsch ist erforderlich. Ohne englische Fassung erhalten auch englischsprachige Geräte die deutsche Nachricht.</p>
+          <h2 className="flex items-center gap-2 text-xl font-bold text-gray-900"><BellRing size={21} /> Hostly-Infos versenden</h2>
+          <p className="mt-1 text-sm text-gray-500">Zielgruppe, Kanal und Sprache werden vor dem Versand serverseitig geprüft.</p>
         </div>
       </div>
 
       <ErrorBanner message={errorMessage} />
       {sentResult && (
-        <div className={`mb-5 flex items-start gap-2 rounded-lg border px-4 py-3 text-sm ${rejectedDeviceCount > 0 ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-green-200 bg-green-50 text-green-800'}`}>
+        <div className={`mb-5 flex items-start gap-2 rounded-lg border px-4 py-3 text-sm ${rejectedDeviceCount > 0 || rejectedEmailCount > 0 ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-green-200 bg-green-50 text-green-800'}`}>
           <Check className="mt-0.5 shrink-0" size={16} />
-          <span>Versand abgeschlossen: {sentResult.sent_device_count ?? 0} angenommen, {rejectedDeviceCount} abgewiesen – insgesamt {sentResult.device_count} Geräte.</span>
+          <span>
+            Versand abgeschlossen: Push {sentResult.sent_device_count ?? 0} angenommen/{rejectedDeviceCount} abgewiesen · E-Mail {sentResult.sent_email_count ?? 0} angenommen/{rejectedEmailCount} abgewiesen.
+          </span>
         </div>
       )}
-      {sentResult && (
+      {sentResult && sentResult.devices.length > 0 && (
         <section className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -194,6 +233,18 @@ export default function PushNotificationsPage() {
             <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">{sentResult.device_count} Geräte</span>
           </div>
           <DeviceList devices={sentResult.devices} />
+        </section>
+      )}
+      {sentResult && sentResult.email_recipients.length > 0 && (
+        <section className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-800">Ergebnis je E-Mail-Adresse</h3>
+              <p className="mt-1 text-xs text-gray-500">„Angenommen“ bestätigt die Übergabe an den E-Mail-Dienst, nicht die spätere Zustellung oder Öffnung.</p>
+            </div>
+            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">{sentResult.email_recipient_count} Adressen</span>
+          </div>
+          <EmailRecipientList recipients={sentResult.email_recipients} />
         </section>
       )}
 
@@ -280,7 +331,50 @@ export default function PushNotificationsPage() {
           </section>
 
           <section className="rounded-xl border border-gray-200 bg-white p-5">
-            <h3 className="mb-4 text-sm font-semibold text-gray-800">2. Nachricht verfassen</h3>
+            <h3 className="mb-4 text-sm font-semibold text-gray-800">2. Kanäle auswählen</h3>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <button
+                type="button"
+                aria-pressed={channels.includes('push')}
+                onClick={() => toggleChannel('push')}
+                className={`rounded-xl border p-4 text-left transition-colors ${channels.includes('push') ? 'border-violet-500 bg-violet-50 ring-1 ring-violet-500' : 'border-gray-200 hover:bg-gray-50'}`}
+              >
+                <span className="flex items-center gap-2 text-sm font-semibold text-gray-900"><BellRing size={17} /> Push</span>
+                <span className="mt-1 block text-xs leading-5 text-gray-500">Nur aktive Geräte mit globaler Push-Freigabe und „Hostly-Infos per Push“.</span>
+              </button>
+              <button
+                type="button"
+                aria-pressed={channels.includes('email')}
+                onClick={() => toggleChannel('email')}
+                className={`rounded-xl border p-4 text-left transition-colors ${channels.includes('email') ? 'border-violet-500 bg-violet-50 ring-1 ring-violet-500' : 'border-gray-200 hover:bg-gray-50'}`}
+              >
+                <span className="flex items-center gap-2 text-sm font-semibold text-gray-900"><Mail size={17} /> E-Mail</span>
+                <span className="mt-1 block text-xs leading-5 text-gray-500">Nur bestätigte Adressen mit globaler E-Mail-Freigabe und „Hostly-Infos per E-Mail“.</span>
+              </button>
+            </div>
+            <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">E-Mail-Empfängerliste</p>
+                  <p className="mt-1 text-xs text-gray-500">Exportiert ausschließlich die für diese Zielgruppe aktuell freigegebenen und bestätigten E-Mail-Adressen.</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={!targetComplete || exportMutation.isPending}
+                  onClick={() => exportMutation.mutate(buildTargetPayload())}
+                  className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Download size={15} /> {exportMutation.isPending ? 'CSV wird erstellt…' : 'E-Mail-Liste als CSV'}
+                </button>
+              </div>
+              {exportMutation.data && (
+                <p className="mt-3 text-xs font-medium text-green-700">{exportMutation.data.recipientCount} Adressen exportiert · {exportMutation.data.filename}</p>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-gray-200 bg-white p-5">
+            <h3 className="mb-4 text-sm font-semibold text-gray-800">3. Nachricht verfassen</h3>
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               <LanguageCopy
                 language="Deutsch (erforderlich)"
@@ -300,15 +394,15 @@ export default function PushNotificationsPage() {
             {!englishCopyComplete && (
               <p className="mt-3 text-xs font-medium text-amber-700">Für eine englische Fassung bitte Titel und Text ausfüllen – oder beide Felder leer lassen.</p>
             )}
-            <p className="mt-3 text-xs text-gray-500">Bleibt English leer, wird die deutsche Fassung an alle Geräte gesendet.</p>
-            <p className="mt-4 text-xs text-gray-400">Die globale Push-Einstellung und der Profil-Schalter „Nachrichten vom Hostly-Team“ werden respektiert. Es wird kein E-Mail-Ersatz versendet.</p>
+            <p className="mt-3 text-xs text-gray-500">Bleibt English leer, erhalten englischsprachige Geräte und E-Mail-Empfänger die deutsche Fassung.</p>
+            <p className="mt-4 text-xs text-gray-400">Push und E-Mail werden unabhängig geprüft. Jede Hostly-Info per E-Mail enthält einen Abmeldelink für genau diese E-Mail-Art.</p>
           </section>
         </div>
 
         <aside className="xl:col-span-1">
           <div className="sticky top-6 rounded-xl border border-gray-200 bg-white p-5">
-            <h3 className="text-sm font-semibold text-gray-800">3. Prüfen und senden</h3>
-            <p className="mt-2 text-xs leading-5 text-gray-500">Die Vorschau wird direkt im Backend berechnet und berücksichtigt aktive Geräte sowie beide Push-Freigaben.</p>
+            <h3 className="text-sm font-semibold text-gray-800">4. Prüfen und senden</h3>
+            <p className="mt-2 text-xs leading-5 text-gray-500">Die Vorschau berücksichtigt die Zielgruppe, City-Start-Zugriff, bestätigte E-Mail-Adressen und alle kanalbezogenen Freigaben.</p>
             <button
               type="button"
               disabled={!targetComplete || !copyComplete || previewMutation.isPending || sendMutation.isPending}
@@ -321,13 +415,24 @@ export default function PushNotificationsPage() {
             {preview && (
               <div className="mt-5 rounded-xl border border-violet-200 bg-violet-50 p-4">
                 <p className="text-2xl font-bold text-violet-900">{preview.recipient_count}</p>
-                <p className="text-xs font-medium text-violet-700">erreichbare Nutzer auf {preview.device_count} Geräten</p>
+                <p className="text-xs font-medium text-violet-700">eindeutige erreichbare Nutzer über die gewählten Kanäle</p>
                 <dl className="mt-4 space-y-2 text-sm">
-                  <div className="flex justify-between gap-3"><dt className="text-gray-600">Deutsch</dt><dd className="font-semibold text-gray-900">{preview.language_counts.de} Geräte</dd></div>
-                  <div className="flex justify-between gap-3"><dt className="text-gray-600">English</dt><dd className="font-semibold text-gray-900">{preview.language_counts.en} Geräte</dd></div>
+                  {preview.channels.includes('push') && (
+                    <>
+                      <div className="flex justify-between gap-3"><dt className="text-gray-600">Push-Nutzer</dt><dd className="font-semibold text-gray-900">{preview.push_recipient_count}</dd></div>
+                      <div className="flex justify-between gap-3"><dt className="text-gray-600">Push-Geräte</dt><dd className="font-semibold text-gray-900">{preview.device_count}</dd></div>
+                      <div className="flex justify-between gap-3 pl-3"><dt className="text-gray-500">Deutsch / English</dt><dd className="font-medium text-gray-700">{preview.push_language_counts.de} / {preview.push_language_counts.en}</dd></div>
+                    </>
+                  )}
+                  {preview.channels.includes('email') && (
+                    <>
+                      <div className="flex justify-between gap-3"><dt className="text-gray-600">E-Mail-Adressen</dt><dd className="font-semibold text-gray-900">{preview.email_recipient_count}</dd></div>
+                      <div className="flex justify-between gap-3 pl-3"><dt className="text-gray-500">Deutsch / English</dt><dd className="font-medium text-gray-700">{preview.email_language_counts.de} / {preview.email_language_counts.en}</dd></div>
+                    </>
+                  )}
                 </dl>
-                {!englishTitlePresent && preview.language_counts.en > 0 && (
-                  <p className="mt-3 text-xs text-violet-700">Diese englischsprachigen Geräte erhalten die deutsche Fassung.</p>
+                {!englishTitlePresent && (preview.push_language_counts.en > 0 || preview.email_language_counts.en > 0) && (
+                  <p className="mt-3 text-xs text-violet-700">Englischsprachige Empfänger erhalten mangels englischer Fassung den deutschen Text.</p>
                 )}
                 {preview.devices.length > 0 && (
                   <details className="mt-4 border-t border-violet-200 pt-3">
@@ -335,8 +440,14 @@ export default function PushNotificationsPage() {
                     <DeviceList devices={preview.devices} compact />
                   </details>
                 )}
-                {preview.device_count === 0 ? (
-                  <p className="mt-4 text-xs font-medium text-amber-700">Für diese Auswahl ist aktuell kein Push-Gerät erreichbar.</p>
+                {preview.email_recipients.length > 0 && (
+                  <details className="mt-4 border-t border-violet-200 pt-3">
+                    <summary className="cursor-pointer text-xs font-semibold text-violet-800">E-Mail-Adressen anzeigen ({preview.email_recipients.length})</summary>
+                    <EmailRecipientList recipients={preview.email_recipients} compact />
+                  </details>
+                )}
+                {preview.recipient_count === 0 ? (
+                  <p className="mt-4 text-xs font-medium text-amber-700">Für diese Auswahl ist über die gewählten Kanäle aktuell niemand freigegeben erreichbar.</p>
                 ) : (
                   <button
                     type="button"
@@ -389,7 +500,37 @@ function DeviceList({
   )
 }
 
-function DeliveryBadge({ status }: { status: AdminPushNotificationDeviceResult['delivery_status'] }) {
+function EmailRecipientList({
+  recipients,
+  compact = false,
+}: {
+  recipients: AdminEmailNotificationRecipientResult[]
+  compact?: boolean
+}) {
+  return (
+    <div className={`mt-4 space-y-2 overflow-y-auto ${compact ? 'max-h-72' : 'max-h-[32rem]'}`}>
+      {recipients.map((recipient) => (
+        <div key={recipient.user_id} className="rounded-lg border border-gray-200 bg-white p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-gray-900">{recipient.user_display_name || recipient.user_email}</p>
+              <p className="truncate text-xs text-gray-500">{recipient.user_email}</p>
+            </div>
+            <DeliveryBadge status={recipient.delivery_status} />
+          </div>
+          <p className="mt-2 text-xs text-gray-500">
+            Nutzer #{recipient.user_id} · {recipient.preferred_language === 'en' ? 'English' : 'Deutsch'}{recipient.city ? ` · ${recipient.city}` : ''}
+          </p>
+          {recipient.rejection_reason && (
+            <p className="mt-1 text-xs font-medium text-red-700">{recipient.rejection_reason}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function DeliveryBadge({ status }: { status: 'ready' | 'accepted' | 'rejected' }) {
   const styles = status === 'accepted'
     ? 'bg-green-100 text-green-800'
     : status === 'rejected'
