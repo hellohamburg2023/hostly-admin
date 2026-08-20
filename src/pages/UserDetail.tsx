@@ -72,6 +72,7 @@ interface UserDetail {
   profile_hostly_verified: boolean
   profile_photo_url: string
   hosted_event_count: number
+  hosted_test_event_count: number
   participation_count: number
   reports_sent_count: number
   reports_received_count: number
@@ -244,6 +245,18 @@ export default function UserDetailPage() {
   if (isLoading) return <div className="p-8 text-gray-400">Laden...</div>
   if (!user) return <div className="p-8 text-gray-400">Nutzer nicht gefunden</div>
   const currentAccountStatus = accountStatus(user)
+  const toggleTestUser = () => {
+    if (!user.is_test_user) {
+      mutation.mutate({ is_test_user: true })
+      return
+    }
+    const eventCount = user.hosted_test_event_count ?? 0
+    const cleanupNotice = eventCount > 0
+      ? ` ${eventCount} ${eventCount === 1 ? 'gehostetes Testevent wird' : 'gehostete Testevents werden'} dabei sofort aus der App entfernt und zunächst 60 Tage in der Admin-Aufbewahrung behalten.`
+      : ''
+    if (!confirm(`Testuser-Markierung entfernen?${cleanupNotice} Der App-Zugriff wird sofort neu berechnet.`)) return
+    mutation.mutate({ is_test_user: false, cleanup_test_events: true })
+  }
 
   return (
     <div className="p-8">
@@ -314,7 +327,7 @@ export default function UserDetailPage() {
               </Link>
             )}
             <button
-              onClick={() => mutation.mutate({ is_test_user: !user.is_test_user })}
+              onClick={toggleTestUser}
               className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
                 user.is_test_user
                   ? 'bg-violet-100 text-violet-700 hover:bg-violet-200'

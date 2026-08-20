@@ -27,6 +27,7 @@ interface User {
   profile_hostly_verified: boolean
   profile_photo_url: string
   hosted_event_count: number
+  hosted_test_event_count: number
   participation_count: number
   reports_received_count: number
   deleted_at: string | null
@@ -93,6 +94,21 @@ export default function UsersPage() {
   const setFilter = (setter: (value: string) => void, value: string) => {
     setter(value)
     setCursor('')
+  }
+  const toggleTestUser = (user: User) => {
+    if (!user.is_test_user) {
+      mutation.mutate({ id: user.id, patch: { is_test_user: true } })
+      return
+    }
+    const eventCount = user.hosted_test_event_count ?? 0
+    const cleanupNotice = eventCount > 0
+      ? ` ${eventCount} ${eventCount === 1 ? 'gehostetes Testevent wird' : 'gehostete Testevents werden'} dabei sofort aus der App entfernt und zunächst 60 Tage in der Admin-Aufbewahrung behalten.`
+      : ''
+    if (!confirm(`Testuser-Markierung entfernen?${cleanupNotice} Der App-Zugriff wird sofort neu berechnet.`)) return
+    mutation.mutate({
+      id: user.id,
+      patch: { is_test_user: false, cleanup_test_events: true },
+    })
   }
   const errorMessage = error
     ? getApiErrorMessage(error)
@@ -216,7 +232,7 @@ export default function UsersPage() {
                 <div className="mt-3 flex items-center justify-between gap-3 border-t border-gray-100 pt-3 text-xs text-gray-500">
                   <span>{u.hosted_event_count} Events · {u.participation_count} Teilnahmen</span>
                   <div className="flex shrink-0 gap-1">
-                    <button onClick={() => mutation.mutate({ id: u.id, patch: { is_test_user: !u.is_test_user } })} title={u.is_test_user ? 'Testuser-Markierung entfernen' : 'Als Testuser markieren'} className={`rounded-lg p-2 ${u.is_test_user ? 'bg-violet-100 text-violet-700' : 'text-gray-500 hover:bg-violet-50 hover:text-violet-700'}`}><Tag size={15} /></button>
+                    <button onClick={() => toggleTestUser(u)} title={u.is_test_user ? 'Testuser-Markierung entfernen' : 'Als Testuser markieren'} className={`rounded-lg p-2 ${u.is_test_user ? 'bg-violet-100 text-violet-700' : 'text-gray-500 hover:bg-violet-50 hover:text-violet-700'}`}><Tag size={15} /></button>
                     {!u.is_superuser && !u.is_deleted && Boolean(u.is_active || u.email_verified_at || u.suspended_at) && <button onClick={() => mutation.mutate({ id: u.id, patch: { is_active: !u.is_active } })} title={u.is_active ? 'Sperren' : 'Entsperren'} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800">{u.is_active ? <UserX size={15} /> : <UserCheck size={15} />}</button>}
                     {!u.is_superuser && !u.is_deleted && <button type="button" onClick={() => { const name = u.profile_display_name || u.username || u.email; const confirmation = prompt(`Nutzer „${name}“ endgültig löschen? Konto, Events, Dateien und zugehörige Daten werden entfernt.\n\nTippe LÖSCHEN zur Bestätigung.`); if (confirmation === 'LÖSCHEN') deleteMutation.mutate(u.id) }} disabled={deleteMutation.isPending} title="Nutzer endgültig löschen" className="rounded-lg p-2 text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"><Trash2 size={15} /></button>}
                   </div>
@@ -284,7 +300,7 @@ export default function UsersPage() {
                         <Eye size={14} />
                       </Link>
                       <button
-                        onClick={() => mutation.mutate({ id: u.id, patch: { is_test_user: !u.is_test_user } })}
+                        onClick={() => toggleTestUser(u)}
                         title={u.is_test_user ? 'Testuser-Markierung entfernen' : 'Als Testuser markieren'}
                         className={`p-1.5 rounded-lg transition-colors ${
                           u.is_test_user
