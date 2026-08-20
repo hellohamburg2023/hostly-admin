@@ -409,6 +409,7 @@ export const getRegionalConfiguration = () =>
 export const patchRegionalConfiguration = (data: {
   regional_waitlist_enabled?: boolean
   default_radius_km?: string
+  nearby_region_max_distance_km?: string
   default_member_threshold?: number
   default_host_threshold?: number
 }) =>
@@ -440,6 +441,9 @@ export const suggestRegionName = (id: number) =>
 
 export const getRegionMemberships = (params?: Record<string, string>) =>
   api.get('/api/admin/region-memberships/', { params }).then((r) => r.data)
+
+export const deleteRegionMembership = (id: number) =>
+  api.delete(`/api/admin/region-memberships/${id}/`).then((r) => r.data)
 
 export function cursorFromUrl(url: string | null | undefined) {
   if (!url) return ''

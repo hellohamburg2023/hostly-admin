@@ -20,6 +20,7 @@ import {
 import {
   activateRegionalWaitlist,
   createRegion,
+  deleteRegionMembership,
   deleteRegion,
   getApiErrorMessage,
   getRegionalConfiguration,
@@ -40,6 +41,7 @@ interface RegionalConfiguration {
   id: number
   regional_waitlist_enabled: boolean
   default_radius_km: string
+  nearby_region_max_distance_km: string
   default_member_threshold: number
   default_host_threshold: number
   updated_at: string
@@ -508,6 +510,7 @@ export default function RegionsPage() {
   const [nameSuggestion, setNameSuggestion] = useState<RegionNameSuggestion | null>(null)
   const [configurationIntent, setConfigurationIntent] = useState<'enable' | 'disable' | null>(null)
   const [defaultRadius, setDefaultRadius] = useState('40')
+  const [nearbyRegionMaxDistance, setNearbyRegionMaxDistance] = useState('200')
   const [defaultMembers, setDefaultMembers] = useState('20')
   const [defaultHosts, setDefaultHosts] = useState('2')
   const formPanelRef = useRef<HTMLDivElement>(null)
@@ -532,6 +535,7 @@ export default function RegionsPage() {
   useEffect(() => {
     if (!configuration.data) return
     setDefaultRadius(String(configuration.data.default_radius_km))
+    setNearbyRegionMaxDistance(String(configuration.data.nearby_region_max_distance_km ?? 200))
     setDefaultMembers(String(configuration.data.default_member_threshold))
     setDefaultHosts(String(configuration.data.default_host_threshold))
   }, [configuration.data])
@@ -630,6 +634,14 @@ export default function RegionsPage() {
   const deleteMutation = useMutation({
     mutationFn: deleteRegion,
     onSuccess: invalidate,
+    onError: (error) => setActionError(getApiErrorMessage(error)),
+  })
+  const membershipDeleteMutation = useMutation({
+    mutationFn: deleteRegionMembership,
+    onSuccess: async () => {
+      setActionError('')
+      await invalidate()
+    },
     onError: (error) => setActionError(getApiErrorMessage(error)),
   })
   const nameSuggestionMutation = useMutation({
@@ -867,6 +879,26 @@ export default function RegionsPage() {
 
       <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-5">
         <div>
+          <h3 className="font-semibold text-gray-900">Reichweite weiterer City-Starts</h3>
+          <p className="mt-1 text-sm text-gray-500">Wartende Nutzer sehen und unterstützen nur City-Starts innerhalb dieser Entfernung zu ihrem Wohnort. Die Änderung wird in geöffneten Apps sofort neu geladen.</p>
+        </div>
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+          <label className="w-full text-sm font-medium text-gray-700 sm:max-w-xs">Maximale Entfernung in km
+            <input type="number" min="1" step="0.1" value={nearbyRegionMaxDistance} onChange={(event) => setNearbyRegionMaxDistance(event.target.value)} className="mt-1.5 w-full rounded-xl border border-gray-300 px-3 py-2.5 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100" />
+          </label>
+          <button
+            type="button"
+            disabled={configMutation.isPending}
+            onClick={() => configMutation.mutate({ nearby_region_max_distance_km: nearbyRegionMaxDistance })}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
+          >
+            <Save size={16} /> Entfernung speichern
+          </button>
+        </div>
+      </section>
+
+      <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-5">
+        <div>
           <h3 className="font-semibold text-gray-900">Standards für automatisch angelegte Regionen</h3>
           <p className="mt-1 text-sm text-gray-500">Diese Werte gelten nur beim ersten automatischen Anlegen. Jede Stadt kann danach separat angepasst werden.</p>
         </div>
@@ -1061,15 +1093,16 @@ export default function RegionsPage() {
             <div className="admin-table admin-mobile-table overflow-x-auto">
               <table className="w-full table-fixed divide-y divide-gray-200 text-sm">
                 <colgroup>
-                  <col className="w-[34%]" />
-                  <col className="w-[15%]" />
-                  <col className="w-[12%]" />
-                  <col className="w-[15%]" />
-                  <col className="w-[15%]" />
-                  <col className="w-[9%]" />
+                  <col className="w-[29%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[11%]" />
                 </colgroup>
                 <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
-                  <tr><th className="px-5 py-3">Person</th><th className="px-5 py-3">Zugang</th><th className="px-5 py-3">Rolle</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Beitritt</th><th className="whitespace-nowrap px-4 py-3 text-center">Begrüßt</th></tr>
+                  <tr><th className="px-5 py-3">Person</th><th className="px-5 py-3">Zugang</th><th className="px-5 py-3">Rolle</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Beitritt</th><th className="whitespace-nowrap px-4 py-3 text-center">Begrüßt</th><th className="px-4 py-3 text-right">Aktion</th></tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {memberships.map((membership) => (
@@ -1097,6 +1130,23 @@ export default function RegionsPage() {
                       </td>
                       <td data-label="Beitritt" className="px-5 py-3 text-gray-600">{formatDate(membership.visit_started_at || membership.joined_at)}</td>
                       <td data-label="Begrüßt" className="px-5 py-3 sm:text-center">{!isDeletedMembership(membership) && membership.join_welcome_seen_at ? <Check size={16} className="text-green-600 sm:mx-auto" /> : '–'}</td>
+                      <td data-label="Aktion" className="px-4 py-3 sm:text-right">
+                        <button
+                          type="button"
+                          disabled={membershipDeleteMutation.isPending && membershipDeleteMutation.variables === membership.id}
+                          onClick={() => {
+                            const person = isDeletedMembership(membership) ? 'Gelöschtes Mitglied' : membership.user_display_name || membership.user_email
+                            if (window.confirm(`${person} wirklich aus ${membership.region_name} entfernen? Das Benutzerkonto bleibt bestehen.`)) {
+                              membershipDeleteMutation.mutate(membership.id)
+                            }
+                          }}
+                          className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-xs font-semibold leading-none text-red-600 hover:bg-red-50 disabled:opacity-50"
+                          aria-label={`${membership.user_display_name || membership.user_email} aus dem City-Start entfernen`}
+                        >
+                          {membershipDeleteMutation.isPending && membershipDeleteMutation.variables === membership.id ? <RefreshCw className="animate-spin" size={14} /> : <Trash2 size={14} />}
+                          Entfernen
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
